@@ -1,0 +1,1 @@
+ALTER TABLE `Account` ADD COLUMN `creditLimit` DECIMAL(15,2) NULL;

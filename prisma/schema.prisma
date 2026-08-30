@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  CASH
+  BANK
+  SAVINGS
+  CREDIT_CARD
+  LOAN
+}
+
+enum MoneyScope {
+  PERSONAL
+  BUSINESS
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  ACCRUED_EXPENSE
+  DEBT_PAYMENT
+  OPENING_BALANCE
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING_REVIEW
+  POSTED
+  VOID
+}
+
+enum GoalType {
+  MONTHLY_INCOME
+  WEALTH
+}
+
+enum ObligationStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+model Account {
+  id                   String         @id @default(cuid())
+  name                 String         @unique @db.VarChar(120)
+  type                 AccountType
+  scope                MoneyScope
+  holder               String?        @db.VarChar(80)
+  creditLimit          Decimal?       @db.Decimal(15, 2)
+  includeInAvailable   Boolean        @default(true)
+  openingDate          DateTime?     @db.Date
+  dueDay               Int?
+  annualInterestRate   Decimal?       @db.Decimal(7, 4)
+  minimumPayment       Decimal?       @db.Decimal(15, 2)
+  debtPriority         Int?
+  isActive             Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  entries              AccountEntry[]
+  sourceTransactions   FinancialTransaction[] @relation("SourceAccount")
+  targetTransactions   FinancialTransaction[] @relation("TargetAccount")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String        @unique @db.VarChar(120)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  tasks       Task[]
+  transactions FinancialTransaction[]
+}
+
+model Task {
+  id          String        @id @default(cuid())
+  name        String        @db.VarChar(140)
+  scope       MoneyScope
+  projectId   String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  project     Project?      @relation(fields: [projectId], references: [id])
+  transactions FinancialTransaction[]
+
+  @@unique([name, projectId])
+}
+
+model Category {
+  id          String        @id @default(cuid())
+  name        String        @db.VarChar(100)
+  scope       MoneyScope?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  transactions FinancialTransaction[]
+
+  @@unique([name, scope])
+}
+
+model FinancialTransaction {
+  id                String              @id @default(cuid())
+  type              TransactionType
+  status            TransactionStatus   @default(PENDING_REVIEW)
+  amount            Decimal             @db.Decimal(15, 2)
+  transactionDate   DateTime            @db.Date
+  description       String?             @db.VarChar(300)
+  counterparty      String?             @db.VarChar(140)
+  scope             MoneyScope
+  accountId         String?
+  destinationAccountId String?
+  projectId         String?
+  taskId            String?
+  categoryId        String?
+  accrualId         String?             @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  account           Account?            @relation("SourceAccount", fields: [accountId], references: [id])
+  destinationAccount Account?           @relation("TargetAccount", fields: [destinationAccountId], references: [id])
+  project           Project?            @relation(fields: [projectId], references: [id])
+  task              Task?               @relation(fields: [taskId], references: [id])
+  category          Category?           @relation(fields: [categoryId], references: [id])
+  entries           AccountEntry[]
+  accrual           AccruedExpense?     @relation(fields: [accrualId], references: [id])
+  auditLogs         AuditLog[]
+
+  @@index([transactionDate, status])
+  @@index([scope, transactionDate])
+}
+
+model AccountEntry {
+  id              String               @id @default(cuid())
+  accountId       String
+  transactionId   String
+  amount          Decimal              @db.Decimal(15, 2)
+  entryDate       DateTime             @db.Date
+  createdAt       DateTime             @default(now())
+  account         Account              @relation(fields: [accountId], references: [id])
+  transaction     FinancialTransaction @relation(fields: [transactionId], references: [id])
+
+  @@index([accountId, entryDate])
+}
+
+model AccruedExpense {
+  id              String           @id @default(cuid())
+  amount          Decimal          @db.Decimal(15, 2)
+  expenseDate     DateTime         @db.Date
+  dueDate         DateTime?        @db.Date
+  description     String?          @db.VarChar(300)
+  scope           MoneyScope
+  projectId       String?
+  taskId          String?
+  categoryId      String?
+  status          ObligationStatus @default(OPEN)
+  paidAmount      Decimal          @default(0) @db.Decimal(15, 2)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  transaction     FinancialTransaction?
+}
+
+model FinancialGoal {
+  id              String    @id @default(cuid())
+  name            String    @db.VarChar(120)
+  type            GoalType
+  targetAmount    Decimal   @db.Decimal(15, 2)
+  baselineAmount  Decimal   @default(0) @db.Decimal(15, 2)
+  scope           MoneyScope?
+  projectId       String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AppSetting {
+  key             String    @id @db.VarChar(100)
+  value           String    @db.Text
+  updatedAt       DateTime  @updatedAt
+}
+
+model AuditLog {
+  id              String               @id @default(cuid())
+  transactionId   String?
+  action          String               @db.VarChar(80)
+  details         String?              @db.Text
+  createdAt       DateTime             @default(now())
+  transaction     FinancialTransaction? @relation(fields: [transactionId], references: [id])
+}
