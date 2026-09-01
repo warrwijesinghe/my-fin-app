@@ -1,0 +1,22 @@
+[Unit]
+Description=FIN Control Next.js application
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=mdev
+Group=mdev
+WorkingDirectory=/srv/fin-app
+Environment=NODE_ENV=production
+Environment=PORT=4010
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=/srv/fin-app/.env
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 4010
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
