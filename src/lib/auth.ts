@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 
 const COOKIE_NAME = "fin_session";
@@ -43,6 +44,10 @@ export function sessionCookie() {
       maxAge: 60 * 60 * 12,
     },
   };
+}
+
+export function relativeRedirect(path: string) {
+  return new NextResponse(null, { status: 303, headers: { Location: path } });
 }
 
 export const clearSessionCookie = {

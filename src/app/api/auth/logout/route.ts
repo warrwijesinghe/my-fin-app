@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
-import { clearSessionCookie } from "@/lib/auth";
+import { clearSessionCookie, relativeRedirect } from "@/lib/auth";
 
-export async function POST(request: Request) {
-  const response = NextResponse.redirect(new URL("/login", request.url));
+export async function POST() {
+  const response = relativeRedirect("/login");
   response.cookies.set(clearSessionCookie.name, clearSessionCookie.value, clearSessionCookie.options);
   return response;
 }
