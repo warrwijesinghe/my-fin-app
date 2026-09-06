@@ -1,0 +1,27 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const vm = require('node:vm');
+const source = fs.readFileSync('src/lib/analytics.ts', 'utf8');
+const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const exported = {};
+vm.runInNewContext(output, { exports: exported, Date, Map, Math, Number });
+const { summarize, groupBy, validDate, goalMetrics } = exported;
+const row = (income, expenses, project = 'A') => ({ income, expenses, project, count: 1, scope: 'BUSINESS', month: '2026-09', category: 'Fees', task: 'No task' });
+assert.equal(summarize([row(0.1,0),row(0.2,0)]).income,0.3);
+assert.equal(summarize([row(100,150)]).net,-50);
+assert.equal(summarize([]).count,0);
+assert.equal(groupBy([row(100,20),row(30,10),row(5,20,'B')],'project')[0].net,100);
+assert.equal(groupBy([row(100,20),row(30,10),row(5,20,'B')],'project').length,2);
+assert.equal(validDate('2026-02-30'),false);
+assert.equal(validDate('2024-02-29'),true);
+assert.equal(validDate('bad'),false);
+assert.equal(goalMetrics(-100,200,300,0,0).progress,0);
+assert.equal(goalMetrics(-100,200,300,0,0).gap,400);
+assert.equal(goalMetrics(-100,200,300,0,0).debtMonths,null);
+assert.equal(goalMetrics(-100,200,300,60,50).debtMonths,4);
+assert.equal(goalMetrics(-100,200,300,60,50).wealthMonths,8);
+assert.equal(goalMetrics(400,0,300,0,0).progress,100);
+assert.equal(goalMetrics(400,0,300,0,0).wealthMonths,0);
+console.log('Analytics calculation checks passed.');
+
