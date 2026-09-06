@@ -2,50 +2,96 @@ name: Deploy to mdev
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: fin-app-production
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Deploy application
-        uses: appleboy/ssh-action@v1.2.1
+      - name: Check out main revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          host: ${{ secrets.MDEV_HOST }}
-          username: ${{ secrets.MDEV_USER }}
-          port: ${{ secrets.MDEV_SSH_PORT }}
-          key: ${{ secrets.MDEV_SSH_KEY }}
-          script_stop: true
-          script: |
-            set -euo pipefail
-            cd /srv/fin-app
-            test -f .env
-            env_backup="$(mktemp)"
-            trap 'rm -f "$env_backup"' EXIT
-            cp .env "$env_backup"
+          persist-credentials: false
+      - name: Set up production Node version
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Validate deployment script
+        run: bash -n scripts/deploy-mdev.sh
+      - name: Install locked dependencies
+        run: npm ci --include=dev
+      - name: Check TypeScript
+        run: npm run lint
+      - name: Build application
+        run: npm run build
 
-            git fetch --prune origin main
-            git checkout --force main
-            git reset --hard origin/main
-            git clean -ffd
-            install -m 600 "$env_backup" .env
+  deploy:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify SSH host and run server deployment script
+        shell: bash
+        env:
+          MDEV_HOST: ${{ secrets.MDEV_HOST }}
+          MDEV_USER: ${{ secrets.MDEV_USER }}
+          MDEV_SSH_PORT: ${{ secrets.MDEV_SSH_PORT }}
+          MDEV_SSH_KEY: ${{ secrets.MDEV_SSH_KEY }}
+          MDEV_SSH_FINGERPRINT: ${{ secrets.MDEV_SSH_FINGERPRINT }}
+        run: |
+          set -Eeuo pipefail
+          fail() { printf '::error::%s\n' "$1" >&2; exit 1; }
+          for name in MDEV_HOST MDEV_USER MDEV_SSH_PORT MDEV_SSH_KEY MDEV_SSH_FINGERPRINT; do
+            [[ -n "${!name}" ]] || fail "Required GitHub secret is missing: $name."
+          done
+          [[ "$MDEV_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.:-]*$ ]] || fail 'MDEV_HOST must be a hostname or an IP address.'
+          [[ "$MDEV_USER" == ubuntu ]] || fail 'MDEV_USER must be ubuntu for this production server.'
+          [[ "$MDEV_SSH_PORT" =~ ^[0-9]{1,5}$ ]] || fail 'MDEV_SSH_PORT must be a numeric port.'
+          (( 10#$MDEV_SSH_PORT >= 1 && 10#$MDEV_SSH_PORT <= 65535 )) || fail 'MDEV_SSH_PORT is out of range.'
+          [[ "$MDEV_SSH_FINGERPRINT" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]] || fail 'MDEV_SSH_FINGERPRINT must be a complete OpenSSH SHA256 fingerprint.'
 
-            npm ci
-            if node -e "const scripts = require('./package.json').scripts || {}; process.exit(scripts['db:migrate'] ? 0 : 1)"; then
-              npm run db:migrate
-            fi
-            npm run build
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          printf '%s\n' "$MDEV_SSH_KEY" > "$ssh_dir/key"
+          unset MDEV_SSH_KEY
+          ssh-keygen -y -P '' -f "$ssh_dir/key" >/dev/null 2>&1 || fail 'MDEV_SSH_KEY must be a valid private key usable without a passphrase.'
 
-            sudo systemctl restart fin-app
-            for attempt in 1 2 3 4 5 6; do
-              if curl --fail --silent --show-error http://127.0.0.1:4010/api/health; then
-                exit 0
+          # Keyscan is untrusted discovery. Trust only the key whose SHA256
+          # fingerprint matches the independently configured GitHub secret.
+          ssh-keyscan -T 10 -p "$MDEV_SSH_PORT" -t ed25519,ecdsa,rsa "$MDEV_HOST" \
+            > "$ssh_dir/scanned_hosts" 2>/dev/null || fail 'Could not obtain SSH host keys.'
+          : > "$ssh_dir/known_hosts"
+          while IFS= read -r host_key; do
+            [[ -n "$host_key" && "$host_key" != \#* ]] || continue
+            printf '%s\n' "$host_key" > "$ssh_dir/candidate"
+            if fingerprint="$(ssh-keygen -lf "$ssh_dir/candidate" -E sha256 2>/dev/null | awk '{print $2}')"; then
+              if [[ "$fingerprint" == "$MDEV_SSH_FINGERPRINT" ]]; then
+                printf '%s\n' "$host_key" >> "$ssh_dir/known_hosts"
               fi
-              sleep 2
-            done
-            exit 1
+            fi
+          done < "$ssh_dir/scanned_hosts"
+          [[ -s "$ssh_dir/known_hosts" ]] || fail 'SSH host fingerprint mismatch. Deployment refused.'
+
+          ssh -F /dev/null -T -p "$MDEV_SSH_PORT" -l "$MDEV_USER" -i "$ssh_dir/key" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o UpdateHostKeys=no \
+            -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+            -o ConnectTimeout=15 -o ConnectionAttempts=1 \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            "$MDEV_HOST" \
+            'test -r /srv/fin-app/scripts/deploy-mdev.sh || { printf "Deployment script missing; complete the bootstrap in deploy/README.md.\n" >&2; exit 1; }; exec timeout --signal=TERM --kill-after=30s 20m /bin/bash /srv/fin-app/scripts/deploy-mdev.sh'
