@@ -47,6 +47,8 @@ export function sessionCookie() {
 }
 
 export function relativeRedirect(path: string) {
+  // Keep form redirects on the browser's origin behind a reverse proxy.
+  // A 303 follows the POST with a GET instead of submitting the form again.
   return new NextResponse(null, { status: 303, headers: { Location: path } });
 }
 
