@@ -28,6 +28,7 @@ enum TransactionType {
   DEBT_PAYMENT
   OPENING_BALANCE
   ADJUSTMENT
+  PARTY_PAYMENT
 }
 
 enum TransactionStatus {
@@ -117,6 +118,16 @@ model Category {
 }
 
 model FinancialTransaction {
+  settlesTransactionId String?
+  settlesTransaction FinancialTransaction? @relation("InvoicePayments", fields:[settlesTransactionId], references:[id])
+  billPayments FinancialTransaction[] @relation("InvoicePayments")
+  @@index([settlesTransactionId])
+  dueDate DateTime? @db.Date
+  partyId String?
+  party Party? @relation(fields: [partyId], references: [id])
+  paymentTiming PaymentTiming @default(PAID)
+  partyEntries PartyEntry[] @relation("PartyTransaction")
+  settlements PartyEntry[] @relation("SettledTransaction")
   owner Owner @default(ME)
   household Boolean @default(false)
   expenseLines ExpenseLine[]
@@ -238,4 +249,36 @@ model HouseholdBudget {
   categoryKey String @default("") @db.VarChar(191)
   amount Decimal @db.Decimal(15,2)
   @@id([month,categoryKey])
+}
+
+enum PaymentTiming {
+ PAID
+ CREDIT
+}
+enum PartyKind {
+ CUSTOMER
+ SUPPLIER
+ BOTH
+}
+model Party {
+ id String @id @default(uuid()) @db.VarChar(191)
+ name String @unique @db.VarChar(140)
+ kind PartyKind
+ contactNo String? @db.VarChar(40)
+ isCash Boolean @default(false)
+ isActive Boolean @default(true)
+ createdAt DateTime @default(now())
+ transactions FinancialTransaction[]
+ entries PartyEntry[]
+}
+model PartyEntry {
+ id String @id @default(uuid()) @db.VarChar(191)
+ partyId String
+ transactionId String @unique
+ settlesTransactionId String?
+ amount Decimal @db.Decimal(15,2)
+ party Party @relation(fields:[partyId], references:[id])
+ transaction FinancialTransaction @relation("PartyTransaction", fields:[transactionId], references:[id])
+ settledTransaction FinancialTransaction? @relation("SettledTransaction", fields:[settlesTransactionId], references:[id])
+ @@index([settlesTransactionId])
 }

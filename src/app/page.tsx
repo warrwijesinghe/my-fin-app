@@ -1,3 +1,4 @@
+import { QuickCapture } from "@/components/quick-capture";
 import Link from "next/link";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { Nav } from "@/components/nav";
@@ -8,11 +9,11 @@ import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string; captured?: string; captureError?: string }> }) {
   await requireSession();
   const data = await getDashboardData();
   const availableAccounts = data.accounts.filter((account) => account.includeInAvailable && ["CASH", "BANK", "SAVINGS"].includes(account.type));
-  const { account: accountId, recent } = await searchParams;
+  const { account: accountId, recent, captured, captureError } = await searchParams;
   const requestedLimit = Number.parseInt(recent ?? "20", 10);
   const recentLimit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(20, requestedLimit)) : 20;
   const selectedAccount = data.accounts.find(account => account.id === accountId);
@@ -20,11 +21,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <><Nav /><main>
-      <div className="page-heading"><div><p className="eyebrow">Private financial control</p><h1>Your money, clearly visible</h1><p className="muted">Confirmed records only. Pending items never change balances.</p></div><Link className="button primary" href="/transactions/new">Add transaction</Link></div>
+      <div className="page-heading"><div><p className="eyebrow">Private financial control</p><h1>Your money, clearly visible</h1><p className="muted">Confirmed records only. Pending items never change balances.</p></div><QuickCapture /></div>
+      {captured && <p role="status">Saved to Review. Account balances are unchanged. <Link href="/review">Complete entry</Link></p>}
+      {captureError && <p role="alert">Enter a positive amount with at most two decimal places and a description.</p>}
       <section className="metric-grid">
-        <article className={`metric ${data.overallPosition >= 0 ? "positive" : "negative"}`}><p>Overall financial position</p><strong>{signedLkr(data.overallPosition)}</strong><small>Assets less loans, credit cards and unpaid accruals</small></article>
+        <article className={`metric ${data.overallPosition >= 0 ? "positive" : "negative"}`}><p>Overall financial position</p><strong>{signedLkr(data.overallPosition)}</strong><small>Cash assets + {lkr(data.outstandingReceivables)} receivable, less debts and unpaid bills</small></article>
         <article className="metric"><p>Available cash now</p><strong>{lkr(data.availableCash)}</strong><small>Cash, bank and included savings</small></article>
-        <article className="metric"><p>Total liabilities</p><strong>{lkr(data.debt + data.outstandingAccruals)}</strong><small>{lkr(data.debt)} debt · {lkr(data.outstandingAccruals)} owed</small></article>
+        <article className="metric"><p>Total liabilities</p><strong>{lkr(data.debt + data.outstandingAccruals)}</strong><small>{lkr(data.debt)} debt · {lkr(data.outstandingAccruals)} owed · <Link href="/bills">Pay bills</Link></small></article>
         <article className={`metric ${data.netMovement >= 0 ? "positive" : "negative"}`}><p>This month’s net movement</p><strong>{signedLkr(data.netMovement)}</strong><small>{lkr(data.income)} income · {lkr(data.expenses)} expenses</small></article>
       </section>
       <div className="dashboard-overview">

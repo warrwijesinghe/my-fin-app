@@ -1,0 +1,2 @@
+ALTER TABLE FinancialTransaction ADD COLUMN settlesTransactionId VARCHAR(191) NULL, ADD INDEX Transaction_settlement_idx (settlesTransactionId), ADD CONSTRAINT Transaction_settlement_fk FOREIGN KEY (settlesTransactionId) REFERENCES FinancialTransaction(id) ON DELETE RESTRICT;
+UPDATE FinancialTransaction t JOIN PartyEntry e ON e.transactionId=t.id SET t.settlesTransactionId=e.settlesTransactionId WHERE e.settlesTransactionId IS NOT NULL;

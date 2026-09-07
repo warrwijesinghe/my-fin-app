@@ -7,7 +7,7 @@ Private personal and business financial-control system for `fin.aplusict.lk`.
 - No financial sample data or seeded accounts.
 - Accounts, opening balances, projects, tasks, categories, goals, and transactions are created through the application.
 - Balance changes are transaction-driven; opening balances are stored as opening transactions.
-- A record without a payment account stays in Review and does not affect account balances.
+- Dashboard Expense / Income quick entries need only amount and description. They are saved to Review without ledger entries; regular Transactions require complete posting details.
 - Transfers update accounts without being counted as income or expense.
 - Transactions have independent actual (`scope`) and tax (`taxScope`) Business/Personal labels. Dashboards, analytics and ordinary income statements use the actual label.
 - Income tax reports at `/reports/tax` use only the tax label for classification, with inclusive date filters, category totals, transaction detail and CSV downloads. Existing posted income/expense tax labels can be changed there, with an audit record, without changing actual labels or account entries.
@@ -28,7 +28,7 @@ Private personal and business financial-control system for `fin.aplusict.lk`.
 
 ### Validation and rollout
 
-Run `npm run lint`, `npm run build`, and the scripts `test-household.cjs`, `test-tax-reports.cjs`, `test-analytics.cjs`, `test-account-center.cjs`, and `test-redirects.cjs` under `scripts` with Node. Route checks use mocked database connections; they never seed the application database.
+Run `npm run lint`, `npm test`, and `npm run build`. The test suite includes `test-drafts-parties.cjs` plus the scripts `test-household.cjs`, `test-tax-reports.cjs`, `test-analytics.cjs`, `test-account-center.cjs`, and `test-redirects.cjs` under `scripts` with Node. Route checks use mocked database connections; they never seed the application database.
 
 Back up the database before `npm run db:migrate`. Both the tax-label migration and household/item migration must be applied before serving this version. The migration adds the `IncomeExpenseActivity` view so category reports use item-line amounts without also summing the parent transaction amount. Build and restart through the normal deployment process afterward.
 
@@ -44,3 +44,38 @@ Back up the database before `npm run db:migrate`. Both the tax-label migration a
 Use one Node.js process behind Nginx. Keep `.env` only on the server, run `npm ci`, `npm run db:migrate`, then `npm run build`. Run the app through a systemd service bound to `127.0.0.1`; Nginx serves `fin.aplusict.lk` with HTTPS and proxies requests to that local service.
 
 Do not run database migrations without taking a database backup first.
+
+## Transactions, quick capture, and customer/supplier ledgers
+
+- The former Quick entry screen is now **Transactions**. Business project is optional: choose **General business / no project** for electricity, cleaning, and other overhead. Projects remain available for project-specific activity.
+- Dashboard **Expense** and **Income** buttons capture amount and description only. The date defaults to today in Asia/Colombo. Draft classification defaults can be changed during review. Pending drafts never enter account or customer/supplier balances, analytics, or tax reports.
+- In **Review**, open one draft, add account, labels, customer/supplier, category, and optional items. **Save progress in Review** supports partial itemization and does not post. Each saved item needs a name, category, and amount; quantity is optional and requires a unit when supplied. The original bill amount is preserved. If items are present, their sum must equal that amount before **Post reviewed transaction** becomes available. Posting locks the draft so duplicate confirmations cannot create duplicate entries.
+- Example: capture LKR 12,000 / Food City bill. Save sugar 2 kg / LKR 500 and tea 200 g / LKR 750 in Review; LKR 10,750 remains to itemize. Add the remaining lines, select the account and post. You can also post an amount-only record by removing all item lines.
+- **Master data → Customers & suppliers** stores name, type, contact number, cash-only status, and active status. Records can be edited/deactivated; their type and cash-only status are fixed after use. No customer/supplier records are seeded. Create Cash Supplier and Cash Customer yourself if wanted, with the generic cash checkbox selected. Specific cash-party names can go in the transaction description. Existing free-text counterparties remain intact; no historical identity is guessed or automatically linked.
+- In Transactions or Review, choose **On credit — settle later** and a named, non-cash customer/supplier. Credit expenses record a pay-later bill; credit income records income and a receivable. Neither moves cash when posted. Supplier payables and customer receivables remain separated by owner. Cash transactions can select a master record but do not create outstanding credit.
+- Open **View ledger** on a master record to see posted transactions, running credit balance, and outstanding bills/sales. Record partial or full payments against a specific invoice using a cash, bank, or savings account belonging to the same owner. Settlements update cash and outstanding balances without counting income/expense again. Repeated submission of the same settlement form is idempotent. Wife account settlements remain spending-log activity without account ledger balances.
+- Dashboard financial position and Analytics net worth include outstanding customer receivables. Supplier obligations continue through the existing unpaid-bills total, avoiding double counting. Household paid-item reports retain their existing paid-expense basis; bill settlements are shown in the party/account ledger and update the Household outstanding-bill figure, not paid-item purchase quantities.
+
+### Rollout for this change
+
+Back up the database, then apply the new `20260909000000_drafts_parties` migration with `npm run db:migrate` before starting this code. It adds Party, PartyEntry, CreditOutstanding, and transaction party/payment/due-date fields. It does not seed data or convert historical counterparties. Existing unlinked pay-later bills are preserved and are not automatically assigned to a supplier ledger. Build and restart afterward. The implementation was tested with mocked connections; applying migrations and verifying the live database are deployment steps.
+
+## Business dashboard and mobile navigation
+
+- **Business** (`/business`) uses posted transactions with actual Business scope and owner Me. Tax classification does not change management profit. Personal, wife, pending, void, transfers, principal payments and customer/supplier settlements are excluded from profit. Credit income and pay-later expenses count when recorded; item amounts are counted once through IncomeExpenseActivity.
+- Select a reporting month. The current month shows month-to-date results compared with the same days of the previous month (capped at its month end); historical months compare full months. Future months are rejected. Six-month trends include zero-activity months.
+- Net profit = recorded income less every recorded expense. Classify expense categories under **Cost control** as direct costs, operating overhead, finance costs or tax expense. Categories start unclassified; gross and operating profit stay unavailable until the period's costs are classified. Classification affects Business reporting across all periods, not transactions or account balances. These are management results based on recorded expenses, with no automatic inventory costing, depreciation, interest or tax calculations.
+- Project results subtract costs assigned to each project. General business / no project remains separate; shared overhead is not arbitrarily allocated to projects.
+- Trading cash movement is shown separately using cash/bank/savings entries for Business income, expenses and party settlements. Unpaid sales, unpaid bills, card purchases, account transfers and card/loan principal payments are excluded from this trading cash measure.
+- Monthly revenue/profit targets and an expense ceiling are optional; blank clears a target while zero remains a valid target. Targets use the full month and actual results use the selected reporting period. Cost classifications and targets are saved in AppSetting; no additional migration beyond the earlier draft/party migration is required.
+- Customer/supplier balances show the latest recorded all-date Business position, independently of the month filter; overdue buckets use today's Colombo date. Unlinked legacy supplier bills remain visible. CSV exports contain selected-period profit, cost and project results.
+- Mobile navigation keeps **Home, Transactions, Review, More**. More contains Accounts, Business, Household, Analytics, Master data, customer/supplier records and Reports. The full desktop navigation includes Business.
+- Business calculation, settings, rendered page and mobile-navigation checks are included in `npm test` via `scripts/test-business.cjs`. Browser layout checks use generated test-data previews, never records inserted into the configured database.
+
+## Paying pay-later bills
+
+Open **Pay bills** from the dashboard liabilities card, **Pay-later bills** from Transactions or mobile More, or **Pay bill** beside a bill in Recent transactions, Household or Business. Select the bill, enter a partial/full amount, payment date and payment account, then **Record bill payment**. Paid bills remain available with payment history.
+
+Both named-supplier bills and older bills without any supplier record can be paid. Existing paid amounts are preserved. Cash/bank/savings payments reduce those balances; credit-card payments increase card debt. Wife payments retain the spending-log model. Payments reduce the existing payable and do not duplicate the original expense. Repeated submissions are idempotent, and invoice locks prevent concurrent overpayment.
+
+Apply `20260910000000_bill_payments` after the earlier migrations, following the database-backup requirement. It adds the transaction-to-invoice payment link and backfills links for existing party settlements, so legacy bills can retain payment history without inventing a supplier. No remote migration or deployment was performed during implementation.
