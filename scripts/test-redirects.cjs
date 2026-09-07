@@ -16,6 +16,7 @@ function load(file, mocks = {}) {
   return exported;
 }
 
+
 const { relativeRedirect } = load('src/lib/auth.ts');
 const types = load('src/lib/types.ts');
 const analytics = load('src/lib/analytics.ts');
