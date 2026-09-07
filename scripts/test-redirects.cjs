@@ -18,15 +18,17 @@ function load(file, mocks = {}) {
 
 const { relativeRedirect } = load('src/lib/auth.ts');
 const types = load('src/lib/types.ts');
+const analytics = load('src/lib/analytics.ts');
+const expenses = load('src/lib/expenses.ts');
 const id = '123e4567-e89b-42d3-a456-426614174000';
 const account = { id, name: 'Test account', type: 'BANK' };
 const pending = { id, type: 'INCOME', amount: 25, transactionDate: '2026-09-06' };
 const cases = [
-  ['accounts', { name: 'Test account', type: 'BANK', scope: 'PERSONAL' }, '/accounts?created=1', [], 1],
-  ['accounts', {}, '/accounts?error=invalid', [], 0],
-  ['accounts/[id]', { name: 'Updated account' }, '/accounts?updated=1', [[account]], 1],
-  ['accounts/[id]', { intent: 'delete' }, '/accounts?deleted=1', [[account], [{ count: 0 }]], 1],
-  ['accounts/[id]', { intent: 'delete' }, '/accounts?has_entries=1', [[account], [{ count: 1 }]], 0],
+  ['accounts', { name: 'Test account', type: 'BANK', scope: 'PERSONAL' }, '/master-data?created=1&section=ACCOUNT', [], 1],
+  ['accounts', {}, '/master-data?error=1&section=ACCOUNT', [], 0],
+  ['accounts/[id]', { name: 'Updated account' }, '/master-data?updated=1&section=ACCOUNT', [[account]], 1],
+  ['accounts/[id]', { intent: 'delete' }, '/master-data?deleted=1&section=ACCOUNT', [[account], [{ count: 0 }]], 1],
+  ['accounts/[id]', { intent: 'delete' }, '/master-data?has_entries=1&section=ACCOUNT', [[account], [{ count: 1 }]], 0],
   ['master-data', {}, '/master-data?error=1', [], 0],
   ...['PROJECT', 'CATEGORY', 'TASK'].flatMap((entity) => [
     ['master-data', { entity, intent: 'create', name: 'Test record', scope: 'PERSONAL' }, `/master-data?created=1&section=${entity}`, [], 1],
@@ -50,11 +52,11 @@ const cases = [
     for (const [route, form, expected, rowResults, expectedWrites] of cases) {
       let writes = 0;
       const queue = [...rowResults];
-      const execute = async () => { writes++; };
+      const execute = async (sql) => { if(sql.startsWith("SELECT")) return [queue.shift()??[]]; writes++; return [[],[]]; };
       const { POST } = load(`src/app/api/${route}/route.ts`, {
         '@/lib/auth': { relativeRedirect },
         '@/lib/route-auth': { requireApiSession: async () => null },
-        '@/lib/types': types,
+        '@/lib/types': types, '@/lib/analytics': analytics, '@/lib/expenses': expenses,
         '@/lib/db': { execute, rows: async () => queue.shift() ?? [], transaction: async (fn) => fn({ execute }) },
       });
       const request = new Request(`${origin}/api/${route.replace('[id]', id)}`, {

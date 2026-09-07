@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { relativeRedirect } from "@/lib/auth";
 import { z } from "zod";
-import { execute } from "@/lib/db";
+import { execute, rows } from "@/lib/db";
 import { requireApiSession } from "@/lib/route-auth";
 
 const entitySchema = z.enum(["PROJECT", "CATEGORY", "TASK"]);
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
   const { entity, intent, id } = base.data;
   if (intent === "delete") {
     const table = entity === "PROJECT" ? "Project" : entity === "CATEGORY" ? "Category" : "Task";
+    const [used] = await rows<any>(entity==="CATEGORY" ? "SELECT (SELECT COUNT(*) FROM FinancialTransaction WHERE categoryId=?) + (SELECT COUNT(*) FROM Item WHERE categoryId=?) + (SELECT COUNT(*) FROM ExpenseLine WHERE categoryId=?) count" : entity==="PROJECT" ? "SELECT COUNT(*) count FROM FinancialTransaction WHERE projectId=?" : "SELECT COUNT(*) count FROM FinancialTransaction WHERE taskId=?",entity==="CATEGORY"?[id,id,id]:[id]);
+    if(Number(used?.count)>0)return redirect("error",entity);
     await execute(`DELETE FROM \`${table}\` WHERE id=?`, [id]);
     return redirect("deleted", entity);
   }
@@ -35,8 +37,11 @@ export async function POST(request: Request) {
     const scope = rawScope ? scopeSchema.safeParse(rawScope) : null;
     if (scope && !scope.success) return redirect("error", entity);
     const value = scope ? scope.data : null;
-    if (intent === "create") await execute("INSERT INTO `Category` (id,name,scope,isActive) VALUES (?,?,?,?)", [crypto.randomUUID(), name.data, value, active]);
-    else await execute("UPDATE `Category` SET name=?,scope=?,isActive=? WHERE id=?", [name.data, value, active, id]);
+    const kind=z.enum(["INCOME","EXPENSE"]).safeParse(form.get("kind")||"EXPENSE");
+    if(!kind.success || name.data.length>100) return redirect("error",entity);
+    if(intent==="update") { const [used]=await rows<any>("SELECT (SELECT COUNT(*) FROM FinancialTransaction WHERE categoryId=?) + (SELECT COUNT(*) FROM Item WHERE categoryId=?) + (SELECT COUNT(*) FROM ExpenseLine WHERE categoryId=?) count",[id,id,id]); const [existing]=await rows<any>("SELECT kind FROM Category WHERE id=?",[id]); if(Number(used?.count)>0 && existing?.kind!==kind.data)return redirect("error",entity); }
+    if (intent === "create") await execute("INSERT INTO `Category` (id,name,scope,kind,isActive) VALUES (?,?,?,?,?)", [crypto.randomUUID(), name.data, value, kind.data, active]);
+    else await execute("UPDATE `Category` SET name=?,scope=?,kind=?,isActive=? WHERE id=?", [name.data, value, kind.data, active, id]);
   }
   if (entity === "TASK") {
     const scope = scopeSchema.safeParse(form.get("scope"));

@@ -32,7 +32,7 @@ export async function RecentTransactions({ selectedAccount, limit = 20 }: { sele
     LEFT JOIN Account a ON a.id=t.accountId
     LEFT JOIN Account d ON d.id=t.destinationAccountId
     LEFT JOIN Category c ON c.id=t.categoryId
-    ${selectedAccount ? "WHERE (t.accountId=? OR t.destinationAccountId=?)" : ""}
+    WHERE t.owner='ME' ${selectedAccount ? "AND (t.accountId=? OR t.destinationAccountId=?)" : ""}
     ORDER BY t.createdAt DESC,t.id DESC LIMIT ${limit + 1}
   `, selectedAccount ? [selectedAccount.id, selectedAccount.id] : []);
   const hasMore = results.length > limit;

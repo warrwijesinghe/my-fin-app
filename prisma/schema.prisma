@@ -48,7 +48,18 @@ enum ObligationStatus {
   VOID
 }
 
+enum Owner {
+  ME
+  WIFE
+}
+
+enum CategoryKind {
+  INCOME
+  EXPENSE
+}
+
 model Account {
+  owner Owner @default(ME)
   id                   String         @id @default(cuid())
   name                 String         @unique @db.VarChar(120)
   type                 AccountType
@@ -92,6 +103,9 @@ model Task {
 }
 
 model Category {
+  kind CategoryKind @default(EXPENSE)
+  items Item[]
+  expenseLines ExpenseLine[]
   id          String        @id @default(cuid())
   name        String        @db.VarChar(100)
   scope       MoneyScope?
@@ -99,10 +113,13 @@ model Category {
   createdAt   DateTime      @default(now())
   transactions FinancialTransaction[]
 
-  @@unique([name, scope])
+  @@unique([name, scope, kind])
 }
 
 model FinancialTransaction {
+  owner Owner @default(ME)
+  household Boolean @default(false)
+  expenseLines ExpenseLine[]
   id                String              @id @default(cuid())
   type              TransactionType
   status            TransactionStatus   @default(PENDING_REVIEW)
@@ -111,6 +128,7 @@ model FinancialTransaction {
   description       String?             @db.VarChar(300)
   counterparty      String?             @db.VarChar(140)
   scope             MoneyScope
+  taxScope          MoneyScope?
   accountId         String?
   destinationAccountId String?
   projectId         String?
@@ -146,6 +164,7 @@ model AccountEntry {
 }
 
 model AccruedExpense {
+  owner Owner @default(ME)
   id              String           @id @default(cuid())
   amount          Decimal          @db.Decimal(15, 2)
   expenseDate     DateTime         @db.Date
@@ -188,4 +207,35 @@ model AuditLog {
   details         String?              @db.Text
   createdAt       DateTime             @default(now())
   transaction     FinancialTransaction? @relation(fields: [transactionId], references: [id])
+}
+
+model Item {
+  id String @id @default(uuid()) @db.VarChar(191)
+  name String @db.VarChar(140)
+  normalizedName String @db.VarChar(140)
+  categoryId String
+  defaultUnit String? @db.VarChar(20)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  category Category @relation(fields: [categoryId], references: [id])
+  lines ExpenseLine[]
+  @@unique([categoryId, normalizedName])
+}
+model ExpenseLine {
+  id String @id @default(uuid()) @db.VarChar(191)
+  transactionId String
+  itemId String
+  categoryId String
+  quantity Decimal? @db.Decimal(15,3)
+  unit String? @db.VarChar(20)
+  amount Decimal @db.Decimal(15,2)
+  transaction FinancialTransaction @relation(fields: [transactionId], references: [id])
+  item Item @relation(fields: [itemId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+}
+model HouseholdBudget {
+  month String @db.Char(7)
+  categoryKey String @default("") @db.VarChar(191)
+  amount Decimal @db.Decimal(15,2)
+  @@id([month,categoryKey])
 }
