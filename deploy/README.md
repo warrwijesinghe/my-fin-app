@@ -122,9 +122,12 @@ Do not delete this lock file while a deployment is running.
 The server runs `/bin/bash /srv/fin-app/scripts/deploy-mdev.sh`, which:
 
 1. Validates the runtime, server checkout, and environment-file protections.
-2. Runs `git fetch origin main` and `git pull --ff-only origin main`. Dirty,
-   diverged, or locally ahead checkouts require manual reconciliation; there is
-   no force checkout, hard reset, or clean.
+2. Saves any tracked working-tree or staged server edits in a timestamped Git
+   stash, then runs `git fetch origin main` and `git pull --ff-only origin
+   main`. Ignored files, including `.env`, are never stashed or altered. A
+   diverged or locally ahead checkout still requires manual reconciliation;
+   there is no force checkout, hard reset, or clean. Review preserved edits
+   with `git stash list` and `git stash show -p stash@{0}` from `/srv/fin-app`.
 3. Runs `npm ci --include=dev` so the build has its TypeScript tools, even when
    `NODE_ENV=production` is inherited.
 4. Runs the existing `npm run db:migrate` only if declared in `package.json`.

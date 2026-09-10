@@ -96,4 +96,10 @@ jobs:
             -o ConnectTimeout=15 -o ConnectionAttempts=1 \
             -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
             "$MDEV_HOST" \
-            'test -r /srv/fin-app/scripts/deploy-mdev.sh || { printf "Deployment script missing; complete the bootstrap in deploy/README.md.\n" >&2; exit 1; }; exec timeout --signal=TERM --kill-after=30s 20m /bin/bash /srv/fin-app/scripts/deploy-mdev.sh'
+            'cd /srv/fin-app || { printf "Cannot enter /srv/fin-app.\n" >&2; exit 1; }
+             if ! git diff --quiet --ignore-submodules -- || ! git diff --cached --quiet --ignore-submodules; then
+               printf "[deploy] Saving tracked server changes in a Git stash before deployment.\n"
+               git stash push --message "fin-app deployment safeguard $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1 || { printf "Could not preserve tracked server changes in a Git stash.\n" >&2; exit 1; }
+             fi
+             test -r scripts/deploy-mdev.sh || { printf "Deployment script missing; complete the bootstrap in deploy/README.md.\n" >&2; exit 1; }
+             exec timeout --signal=TERM --kill-after=30s 20m /bin/bash scripts/deploy-mdev.sh'

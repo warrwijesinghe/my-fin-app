@@ -35,8 +35,19 @@ main() {
   fi
   git check-ignore -q -- .env || fail 'The server .env must be ignored by Git.'
   [[ "$(git branch --show-current)" == main ]] || fail 'The server checkout must be on main.'
-  git diff --quiet --ignore-submodules -- || fail 'Tracked server files have local changes; resolve them before deploying.'
-  git diff --cached --quiet --ignore-submodules -- || fail 'The server index has staged changes; resolve them before deploying.'
+  # A deployment checkout must not carry hand-edited tracked files between
+  # releases. Preserve them in Git rather than discarding them, so an operator
+  # can inspect or restore them later. Ignored files (notably .env) are never
+  # included in this stash.
+  local stash_message
+  stash_message="fin-app deployment safeguard $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if ! git diff --quiet --ignore-submodules -- || ! git diff --cached --quiet --ignore-submodules; then
+    stage='preserve tracked server changes'
+    log 'Saving tracked server changes in a Git stash before updating.'
+    git stash push --message "$stash_message" >/dev/null 2>&1 || fail 'Could not preserve tracked server changes in a Git stash.'
+    git diff --quiet --ignore-submodules -- && git diff --cached --quiet --ignore-submodules || fail 'Tracked server changes remain after preserving them; manual reconciliation is required.'
+    log 'Tracked server changes were preserved. Review them with git stash list after deployment.'
+  fi
 
   stage='fetch origin/main'
   log 'Fetching origin/main.'
