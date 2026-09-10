@@ -6,7 +6,7 @@ import { dateValue } from "@/lib/format";
 import { QuickEntry } from "@/components/quick-entry";
 
 export const dynamic = "force-dynamic";
-
+//temp comment
 export default async function NewTransactionPage({searchParams}:{searchParams:Promise<{owner?:string;household?:string;error?:string;scope?:string}>}) {
   const viewer=await requireSession();
   const params=await searchParams;
