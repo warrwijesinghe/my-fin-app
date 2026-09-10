@@ -13,3 +13,16 @@ export async function getDashboardData(scope?: MoneyScope) {
   const amount=(t:string)=>Number(totals.find((x:RowDataPacket)=>x.type===t)?.amount??0), assets=filtered.filter(a=>assetTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0), availableCash=filtered.filter(a=>assetTypes.includes(a.type)&&a.includeInAvailable).reduce((s,a)=>s+a.balance,0), debt=filtered.filter(a=>debtTypes.includes(a.type)).reduce((s,a)=>s+Math.max(a.balance,0),0), outstandingAccruals=Number(accrual?.amount??0), income=amount("INCOME"), expenses=amount("EXPENSE")+amount("ACCRUED_EXPENSE");
   return {accounts:filtered,assets,availableCash,debt,outstandingAccruals,outstandingReceivables,overallPosition:assets+outstandingReceivables-debt-outstandingAccruals,income,expenses,netMovement:income-expenses,pending:Number(pending?.count??0)};
 }
+
+export type LiabilitySupplier = { id:string|null; name:string; amount:number; count:number };
+export async function getLiabilitySuppliers(): Promise<LiabilitySupplier[]> {
+  const suppliers=await rows<RowDataPacket>(`SELECT t.partyId,COALESCE(p.name,t.counterparty,'Unlinked supplier') name,
+    COALESCE(SUM(GREATEST(a.amount-a.paidAmount,0)),0) amount,COUNT(*) count
+    FROM AccruedExpense a JOIN FinancialTransaction t ON t.accrualId=a.id
+    LEFT JOIN Party p ON p.id=t.partyId
+    WHERE t.status='POSTED' AND a.status IN ('OPEN','PARTIALLY_PAID') AND a.amount>a.paidAmount
+    GROUP BY t.partyId,p.name,t.counterparty
+    HAVING SUM(GREATEST(a.amount-a.paidAmount,0))>0.005
+    ORDER BY amount DESC`);
+  return suppliers.map(s=>({id:s.partyId||null,name:String(s.name),amount:Number(s.amount),count:Number(s.count)}));
+}

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { Nav } from "@/components/nav";
 import { IncomeExpenseChart } from "@/components/chart";
-import { getDashboardData } from "@/lib/finance";
+import { getDashboardData, getLiabilitySuppliers } from "@/lib/finance";
+import { DashboardLiabilities } from "@/components/dashboard-liabilities";
 import { lkr, signedLkr } from "@/lib/format";
 import { requireSession } from "@/lib/auth";
 
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string; captured?: string; captureError?: string }> }) {
   const viewer=await requireSession();
-  const data = await getDashboardData();
+  const [data,suppliers] = await Promise.all([getDashboardData(),getLiabilitySuppliers()]);
   const availableAccounts = data.accounts.filter((account) => account.includeInAvailable && ["CASH", "BANK", "SAVINGS"].includes(account.type));
   const { account: accountId, recent, captured, captureError } = await searchParams;
   const requestedLimit = Number.parseInt(recent ?? "20", 10);
@@ -41,6 +42,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <IncomeExpenseChart income={data.income} expenses={data.expenses} />
         <section className="panel dashboard-review"><div className="section-heading"><div><p className="eyebrow">Action needed</p><h2>Review queue</h2></div><Link href="/review">Open review</Link></div><div className="empty-compact"><strong>{data.pending}</strong><span>entries need an account or confirmation</span></div></section>
       </div>
+      <DashboardLiabilities accounts={data.accounts} suppliers={suppliers}/>
     </main></>
   );
 }
