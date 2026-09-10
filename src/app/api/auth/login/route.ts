@@ -1,5 +1,5 @@
 import { isCorrectPassword, relativeRedirect, sessionCookie } from "@/lib/auth";
-
+//login
 export async function POST(request: Request) {
   const formData = await request.formData();
   const owner = formData.get("owner") === "WIFE" ? "WIFE" : "ME";
