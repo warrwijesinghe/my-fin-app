@@ -17,6 +17,7 @@ export function QuickCapture() {
         <input type="hidden" name="type" value={type}/>
         <label>Amount (LKR)<input autoFocus name="amount" type="number" min="0.01" max="999999999" step="0.01" required/></label>
         <label>Description<input name="description" maxLength={300} placeholder={type==="EXPENSE"?"Food City bill":"Customer payment"} required/></label>
+        {type==="EXPENSE"&&<label>Who will pay?<select name="spentBy" defaultValue="ME"><option value="ME">WARR Wijesinghe</option><option value="WIFE">JAD Buddhika</option></select></label>}
         <button className="button primary">Save to Review</button>
         <button className="button" type="button" onClick={()=>dialog.current?.close()}>Cancel</button>
       </form>}

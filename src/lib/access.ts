@@ -1,6 +1,6 @@
 import type { Owner } from "./types";
 
-export type ReadScope = "private" | "household" | "cash" | "shared";
+export type ReadScope = "private" | "household" | "cash" | "shared" | "family";
 export const personName = (owner: string) => owner === "WIFE" ? "Sudu Manike" : "Ayya";
 export function cashName(owner: string, viewer: string) {
   return owner === "ME" ? (viewer === "ME" ? "Cash at Sudu Manike" : "Ayya Cash") : (viewer === "WIFE" ? "Cash at Ayya" : "Sudu Manike Cash");
@@ -17,7 +17,7 @@ export function scopeSelect(sql: string, owner: Owner, scope: ReadScope = "priva
   const tx = scope === "shared" ? `(${own} OR household=1 OR ${sharedTx})` : scope === "household" ? `(${own} OR household=1)` : scope === "cash" ? `(${own} OR ${sharedTx})` : own;
   const txIds = `SELECT id FROM FinancialTransaction WHERE ${tx}`;
   const filters: Record<string,string> = {
-    Account: scope !== "private" ? `(${own} OR isSharedCash=1)` : own,
+    Account: scope === "family" ? "1=1" : scope !== "private" ? `(${own} OR isSharedCash=1)` : own,
     FinancialTransaction: tx, IncomeExpenseActivity: own, CreditOutstanding: own,
     Project: own, Task: "1=1", Party: "1=1", Category: "1=1", FinancialGoal: own, AppSetting: own,
     Item: "1=1",

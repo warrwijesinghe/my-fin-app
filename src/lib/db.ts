@@ -23,6 +23,13 @@ export async function rows<T extends RowDataPacket>(sql: string, values: unknown
 export async function householdRows<T extends RowDataPacket>(sql: string, values: unknown[] = []) { return rows<T>(sql, values, "household"); }
 export async function cashRows<T extends RowDataPacket>(sql: string, values: unknown[] = []) { return rows<T>(sql, values, "cash"); }
 export async function sharedRows<T extends RowDataPacket>(sql: string, values: unknown[] = []) { return rows<T>(sql, values, "shared"); }
+// Payment account names are shared only inside the authenticated family entry flow.
+// This deliberately returns no balances or transaction history.
+export async function familyPaymentAccounts<T extends RowDataPacket>() {
+  await currentOwner();
+  const [result] = await pool.execute<T[]>("SELECT id,name,type,owner,isSharedCash FROM Account WHERE isActive=1 ORDER BY owner,name");
+  return result;
+}
 
 export async function execute(sql: string, values: unknown[] = []) {
   const [result] = await pool.execute<ResultSetHeader>(sql, values);

@@ -42,7 +42,7 @@ async function create(formPatch={},dbPatch={}) {
 }
 (async()=>{
   const own=await create();assert.equal(own.result,'/household?created=1');assert.equal(own.items.size,1);assert.equal(own.saved.length,2);assert.equal(own.saved[1][4],null);
-  const tx=own.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction'));assert.equal(tx.values[2],150);assert.equal(tx.values[6],'PERSONAL');assert.equal(tx.values[7],'BUSINESS');assert.equal(tx.values[8],'ME');assert.equal(tx.values[9],true);
+  const tx=own.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction'));assert.equal(tx.values[2],150);assert.equal(tx.values[6],'PERSONAL');assert.equal(tx.values[7],'PERSONAL');assert.equal(tx.values[8],'ME');assert.equal(tx.values[9],true);
   assert.equal(own.statements.find(s=>s.sql.startsWith('INSERT INTO AccountEntry')).values[3],-150);
   const wife=await create({owner:'WIFE'},{owner:'WIFE',viewer:'WIFE'});assert.equal(wife.committed,true);assert.equal(wife.statements.filter(s=>s.sql.startsWith('INSERT INTO AccountEntry')).length,1);assert.equal(wife.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction')).values[8],'WIFE');
   assert.equal((await create({type:'INCOME',lines:'[]',amount:100},{owner:'WIFE'})).committed,false);

@@ -36,6 +36,12 @@ export async function POST(request: Request) {
   const spentBy=z.enum(["ME","WIFE"]).safeParse(form.get("spentBy")||viewer);
   if(!spentBy.success)return fail("invalid");
   const expense = ["EXPENSE","ACCRUED_EXPENSE"].includes(d.type);
+  const household = expense && form.get("household") === "on";
+  if (household) {
+    d.scope="PERSONAL";
+    d.taxScope="PERSONAL";
+    d.projectId=undefined;
+  }
   if (lines.length && !expense) return fail("invalid");
   let amount = lines.length ? lines.reduce((sum,line) => sum + moneyCents(line.amount),0)/100 : d.amount;
   if ((!amount && !draftId) || (amount ?? 0) > 999999999 || Math.abs((amount ?? 0)*100-Math.round((amount ?? 0)*100))>0.00001) return fail("invalid");
@@ -66,7 +72,7 @@ export async function POST(request: Request) {
       if(d.partyId&&!party)throw new InputError("party");
       if(party && (moving || !["BOTH",d.type==="INCOME"?"CUSTOMER":"SUPPLIER"].includes(party.kind)))throw new InputError("party");
       if(credit && !saveDraft && (!party||party.isCash))throw new InputError("credit-party");
-      if(account && account.owner!==viewer && (!account.isSharedCash || d.type!=="EXPENSE"))throw new InputError("account");
+      if(account && account.owner!==viewer && !(expense && spentBy.data===account.owner))throw new InputError("account");
       if(dest && (dest.owner!==viewer || account?.owner!==viewer))throw new InputError("accounts");
       if(account?.isSharedCash && d.type==="INCOME")throw new InputError("Use-transfer-to-top-up");
       if(account && account.owner!==viewer && d.projectId)throw new InputError("shared-metadata");
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
       }
       if (d.projectId && !await find("SELECT id FROM Project WHERE id=? AND isActive=1",[d.projectId])) throw new InputError("project");
       if (d.taskId && !await find("SELECT id FROM Task WHERE id=? AND isActive=1",[d.taskId])) throw new InputError("invalid");
-      const id = d.draftId ?? crypto.randomUUID(), household = expense && form.get("household") === "on";
+      const id = d.draftId ?? crypto.randomUUID();
       let accrualId: string | null = null;
       const categoryId = categoryIds.length === 1 ? categoryIds[0] : null;
       if (!saveDraft && d.type === "ACCRUED_EXPENSE") {
@@ -110,7 +116,7 @@ export async function POST(request: Request) {
       }
       await c.execute("UPDATE FinancialTransaction SET spentBy=?,recordedBy=? WHERE id=?",[spentBy.data,viewer,id]);
       await c.execute("INSERT INTO AuditLog (id,transactionId,action,details) VALUES (?,?,?,?)",[crypto.randomUUID(),id,saveDraft?"DRAFT_UPDATED":"TRANSACTION_POSTED",JSON.stringify({owner,household,lines:lines.length})]);
-    }, "cash");
+    }, "family");
   } catch (error) { if (error instanceof InputError) return fail(error.message); throw error; }
   if(d.draftId)return relativeRedirect(saveDraft?`/review/${d.draftId}?saved=1`:"/review?posted=1");
   if(form.get("returnTo")==="shared-cash")return relativeRedirect("/shared-cash?saved=1");
