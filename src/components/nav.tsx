@@ -4,9 +4,9 @@ import { useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const desktopLinks = [["Dashboard", "/"], ["Account Center", "/account-center"], ["Transactions", "/transactions/new"], ["Review", "/review"], ["Master data", "/master-data"], ["Analytics", "/analytics"], ["Household", "/household"], ["Business", "/business"], ["Reports", "/reports"]] as const;
+const desktopLinks = [["Dashboard", "/"], ["Account Center", "/account-center"], ["Transactions", "/transactions/new"], ["Review", "/review"], ["Master data", "/master-data"], ["Analytics", "/analytics"], ["Household", "/household"], ["Shared cash", "/shared-cash"], ["Business", "/business"], ["Reports", "/reports"]] as const;
 const mobileLinks = [["Home", "/"], ["Transactions", "/transactions/new"], ["Review", "/review"]] as const;
-const moreLinks = [["Pay-later bills", "/bills"], ["Account Center", "/account-center"], ["Business", "/business"], ["Household", "/household"], ["Analytics", "/analytics"], ["Master data", "/master-data"], ["Customers & suppliers", "/master-data/parties"], ["Reports", "/reports"]] as const;
+const moreLinks = [["Pay-later bills", "/bills"], ["Account Center", "/account-center"], ["Business", "/business"], ["Household", "/household"], ["Shared cash", "/shared-cash"], ["Analytics", "/analytics"], ["Master data", "/master-data"], ["Customers & suppliers", "/master-data/parties"], ["Reports", "/reports"]] as const;
 
 function isCurrent(pathname: string, href: string) { return href === "/" ? pathname === href : pathname.startsWith(href); }
 
@@ -18,7 +18,7 @@ function AppLinks({ links, className }: { links: readonly (readonly [string, str
 function MobileStackHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const title = pathname === "/" ? "FIN Control" : pathname.startsWith("/account-center") ? "Account Center" : pathname.startsWith("/transactions") ? "Transactions" : pathname.startsWith("/parties") ? "Customer / supplier ledger" : pathname.startsWith("/master-data") ? "Master data" : pathname.startsWith("/review") ? "Review" : pathname.startsWith("/bills") ? "Pay-later bills" : pathname.startsWith("/business") ? "Business" : pathname.startsWith("/household") ? "Household" : pathname.startsWith("/analytics") ? "Analytics" : "Reports";
+  const title = pathname === "/" ? "FIN Control" : pathname.startsWith("/shared-cash") ? "Shared cash" : pathname.startsWith("/account-center") ? "Account Center" : pathname.startsWith("/transactions") ? "Transactions" : pathname.startsWith("/parties") ? "Customer / supplier ledger" : pathname.startsWith("/master-data") ? "Master data" : pathname.startsWith("/review") ? "Review" : pathname.startsWith("/bills") ? "Pay-later bills" : pathname.startsWith("/business") ? "Business" : pathname.startsWith("/household") ? "Household" : pathname.startsWith("/analytics") ? "Analytics" : "Reports";
   return <div className="mobile-stack">{pathname !== "/" && <button aria-label="Go back" onClick={() => window.history.length > 1 ? router.back() : router.push("/")} type="button">‹ Back</button>}<strong>{title}</strong></div>;
 }
 

@@ -21,7 +21,7 @@ const types = load('src/lib/types.ts');
 const analytics = load('src/lib/analytics.ts');
 const expenses = load('src/lib/expenses.ts');
 const id = '123e4567-e89b-42d3-a456-426614174000';
-const account = { id, name: 'Test account', type: 'BANK' };
+const account = { id, name: 'Test account', type: 'BANK', owner:'ME' };
 const pending = { id, type: 'INCOME', amount: 25, transactionDate: '2026-09-06' };
 const cases = [
   ['accounts', { name: 'Test account', type: 'BANK', scope: 'PERSONAL' }, '/master-data?created=1&section=ACCOUNT', [], 1],
@@ -32,10 +32,10 @@ const cases = [
   ['master-data', {}, '/master-data?error=1', [], 0],
   ...['PROJECT', 'CATEGORY', 'TASK'].flatMap((entity) => [
     ['master-data', { entity, intent: 'create', name: 'Test record', scope: 'PERSONAL' }, `/master-data?created=1&section=${entity}`, [], 1],
-    ['master-data', { entity, intent: 'update', id, name: 'Updated record', scope: 'PERSONAL' }, `/master-data?updated=1&section=${entity}`, [], 1],
-    ['master-data', { entity, intent: 'delete', id }, `/master-data?deleted=1&section=${entity}`, [], 1],
+    ['master-data', { entity, intent: 'update', id, name: 'Updated record', scope: 'PERSONAL' }, `/master-data?updated=1&section=${entity}`, [[{id}]], 1],
+    ['master-data', { entity, intent: 'delete', id }, `/master-data?deleted=1&section=${entity}`, [[{id}]], 1],
   ]),
-  ['transactions', { type: 'INCOME', amount: '25', transactionDate: '2026-09-06', scope: 'PERSONAL', accountId: id }, '/?created=1', [[account]], 4],
+  ['transactions', { type: 'INCOME', amount: '25', transactionDate: '2026-09-06', scope: 'PERSONAL', accountId: id }, '/?created=1', [[account]], 5],
   ['transactions', {}, '/transactions/new?error=invalid', [], 0],
   ['transactions', { type: 'INCOME', amount: '25', transactionDate: '2026-09-06', scope: 'BUSINESS' }, '/transactions/new?error=account', [], 0],
   ['transactions', { type: 'TRANSFER', amount: '25', transactionDate: '2026-09-06', scope: 'PERSONAL' }, '/transactions/new?error=accounts', [], 0],
@@ -54,10 +54,10 @@ const cases = [
       const queue = [...rowResults];
       const execute = async (sql) => { if(sql.startsWith("SELECT")) return [queue.shift()??[]]; writes++; return [[],[]]; };
       const { POST } = load(`src/app/api/${route}/route.ts`, {
-        '@/lib/auth': { relativeRedirect },
+        '@/lib/auth': { currentOwner:async()=> 'ME', relativeRedirect },
         '@/lib/route-auth': { requireApiSession: async () => null },
         '@/lib/types': types, '@/lib/analytics': analytics, '@/lib/expenses': expenses,
-        '@/lib/db': { execute, rows: async () => queue.shift() ?? [], transaction: async (fn) => fn({ execute }) },
+        '@/lib/db': { masterRecordInUse:async()=>false, execute, rows: async () => queue.shift() ?? [], transaction: async (fn) => fn({ execute }) },
       });
       const request = new Request(`${origin}/api/${route.replace('[id]', id)}`, {
         method: 'POST', body: new URLSearchParams(form),

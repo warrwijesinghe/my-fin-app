@@ -17,5 +17,5 @@ export default async function MasterDataPage({ searchParams }: { searchParams: P
     rows<any>("SELECT id,name,scope,projectId,isActive FROM `Task` ORDER BY isActive DESC,name"),
     getAccountBalances(),
   ]);
-  return <><Nav /><main><div className="page-heading"><div><p className="eyebrow">Setup and maintenance</p><h1>Master data</h1><p className="muted">Create, edit, deactivate, or delete the records used when entering transactions.</p></div></div><MasterData accounts={accounts} initialSection={initialSection} result={result} categories={categories} projects={projects} tasks={tasks} /></main></>;
+  return <><Nav /><main><div className="page-heading"><div><p className="eyebrow">Setup and maintenance</p><h1>Master data</h1><p className="muted">Categories and tasks are shared. Accounts and projects are private.</p></div></div><MasterData accounts={accounts.filter(a=>!a.isSharedCash)} initialSection={initialSection} result={result} categories={categories} projects={projects} tasks={tasks} /></main></>;
 }

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const label = (scope: MoneyScope) => scope === "BUSINESS" ? "Business" : "Personal";
 
 export default async function TaxReports({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireSession();
+  const viewer=await requireSession();
   const params = await searchParams;
   const text = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -22,10 +22,10 @@ export default async function TaxReports({ searchParams }: { searchParams: Promi
   const transactions = valid ? await rows<RowDataPacket & TaxTransaction>(`
     SELECT t.owner,t.id,t.transactionDate,t.type,t.status,t.description,t.amount,t.scope,t.taxScope,COALESCE(c.name,'Uncategorized') category
     FROM FinancialTransaction t LEFT JOIN Category c ON c.id=t.categoryId
-    WHERE t.owner='ME' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=?
+    WHERE t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=?
     ORDER BY t.transactionDate,t.createdAt,t.id`, [start, end]) : [];
-  const activity = valid ? await rows<RowDataPacket & TaxTransaction>("SELECT t.activityId id,t.owner,t.transactionDate,t.type,t.status,t.description,t.amount,t.scope,t.taxScope,COALESCE(c.name,'Uncategorized') category FROM IncomeExpenseActivity t LEFT JOIN Category c ON c.id=t.categoryId WHERE t.owner='ME' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=? ORDER BY t.transactionDate,t.createdAt",[start,end]) : [];
-  const report = incomeTaxReport(activity, scope);
+  const activity = valid ? await rows<RowDataPacket & TaxTransaction>("SELECT t.activityId id,t.owner,t.transactionDate,t.type,t.status,t.description,t.amount,t.scope,t.taxScope,COALESCE(c.name,'Uncategorized') category FROM IncomeExpenseActivity t LEFT JOIN Category c ON c.id=t.categoryId WHERE t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=? ORDER BY t.transactionDate,t.createdAt",[start,end]) : [];
+  const report = incomeTaxReport(activity, scope, viewer);
   const categories = groupBy(report.data, "category");
 
   return <><Nav /><main className="analytics-page">
@@ -38,7 +38,7 @@ export default async function TaxReports({ searchParams }: { searchParams: Promi
     </form><p className="analytics-note">Dates are inclusive. Choose the dates for your reporting period. Dashboards, analytics and ordinary income statements continue to use the actual label.</p></section>
     {!valid && <p className="analytics-alert" role="alert">Choose valid dates with the From date on or before the To date.</p>}
     {valid && <>
-      <section className="panel"><div className="section-heading"><div><h2>{label(scope)} income tax report</h2><p className="muted">{start} to {end} · Tax label: {label(scope)} · {report.total.count} activity lines</p></div><ExportTaxReport transactions={report.transactions} scope={scope} start={start} end={end} /></div>
+      <section className="panel"><div className="section-heading"><div><h2>{label(scope)} income tax report</h2><p className="muted">{start} to {end} · Tax label: {label(scope)} · {report.total.count} activity lines</p></div><ExportTaxReport owner={viewer} transactions={report.transactions} scope={scope} start={start} end={end} /></div>
         <div className="table-wrap"><table><thead><tr><th>Category</th><th>Income</th><th>Expenses</th><th>Net</th></tr></thead><tbody>{categories.map(item => <tr key={item.name}><td>{item.name}</td><td>{lkr(item.income)}</td><td>{lkr(item.expenses)}</td><td>{lkr(item.net)}</td></tr>)}{!categories.length && <tr><td colSpan={4}>No transactions with this tax label in this period.</td></tr>}</tbody><tfoot><tr><th>Total</th><td>{lkr(report.total.income)}</td><td>{lkr(report.total.expenses)}</td><td>{lkr(report.total.net)}</td></tr></tfoot></table></div>
         <p className="analytics-note">Includes posted income and expenses, including pay-later bills when recorded. Excludes transfers, debt payments, opening balances, adjustments, pending and void records. This report classifies records; it does not calculate tax or determine deductibility.</p>
         <details><summary>View included transactions ({report.total.count})</summary><div className="table-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Actual label</th><th>Tax label</th><th>Income</th><th>Expenses</th></tr></thead><tbody>{report.transactions.map(item => <tr key={item.id}><td>{item.transactionDate.slice(0, 10)}</td><td>{item.description || item.type.replaceAll("_", " ")}</td><td>{label(item.scope)}</td><td>{label(taxLabel(item))}</td><td>{item.type === "INCOME" ? lkr(item.amount) : "—"}</td><td>{item.type !== "INCOME" ? lkr(item.amount) : "—"}</td></tr>)}</tbody></table></div></details>

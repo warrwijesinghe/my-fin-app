@@ -21,7 +21,7 @@ export function AccountCenter({ accounts, selectedId, entries }: { accounts: Acc
   const account = accounts.find(a => a.id === selectedId);
   const scopedAccounts = accounts.filter(a => scope === "ALL" || a.scope === scope);
   const visibleAccounts = scopedAccounts.filter(a => `${a.name} ${a.type} ${a.holder ?? ""}`.toLowerCase().includes(accountQuery.toLowerCase()));
-  const totals = portfolioTotals(scopedAccounts);
+  const totals = portfolioTotals(scopedAccounts, accounts[0]?.owner??"ME");
   const statement = useMemo(() => buildStatement(entries), [entries]);
   const summary = useMemo(() => summarizeStatement(statement, from, to), [statement, from, to]);
   const invalidDates = !!from && !!to && from > to;

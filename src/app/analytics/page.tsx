@@ -17,7 +17,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
   const start = text("start") || `${today.slice(0, 7)}-01`, end = text("end") || today;
   const valid = validDate(start) && validDate(end) && start <= end;
   const scope = ["PERSONAL", "BUSINESS"].includes(text("scope")) ? text("scope") : "";
-  const filters = ["t.owner='ME'","t.transactionDate >= ?", "t.transactionDate <= ?"];
+  const filters = ["t.transactionDate >= ?", "t.transactionDate <= ?"];
   const values: string[] = [valid ? start : today, valid ? end : today];
   if (scope) { filters.push("t.scope=?"); values.push(scope); }
   for (const key of ["projectId", "categoryId", "taskId"]) if (text(key)) { filters.push(`t.${key}=?`); values.push(text(key)); }
@@ -30,10 +30,10 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
       WHERE t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND ${filters.join(" AND ")}
       GROUP BY month,t.scope,t.projectId,p.name,t.categoryId,c.name,t.taskId,k.name`, values) : Promise.resolve([]),
     valid ? rows<RowDataPacket>(`SELECT COUNT(*) count FROM FinancialTransaction t WHERE t.status='PENDING_REVIEW' AND ${filters.join(" AND ")}`, values) : Promise.resolve([]),
-    rows<RowDataPacket>("SELECT a.id,a.name,a.type,COALESCE(SUM(e.amount),0) balance FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id WHERE a.owner='ME' GROUP BY a.id ORDER BY a.name"),
-    rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(amount-paidAmount,0)),0) amount FROM AccruedExpense WHERE owner='ME' AND status IN ('OPEN','PARTIALLY_PAID')"),
+    rows<RowDataPacket>("SELECT a.id,a.name,a.type,COALESCE(SUM(e.amount),0) balance FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id WHERE 1=1 GROUP BY a.id ORDER BY a.name"),
+    rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(amount-paidAmount,0)),0) amount FROM AccruedExpense WHERE status IN ('OPEN','PARTIALLY_PAID')"),
     rows<RowDataPacket>("SELECT value FROM AppSetting WHERE `key`='analyticsGoals'"),
-    rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(balance,0)),0) amount FROM CreditOutstanding WHERE owner='ME' AND type='INCOME'")
+    rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(balance,0)),0) amount FROM CreditOutstanding WHERE type='INCOME'")
   ]);
   const data: AnalyticsRow[] = grouped.map(row => ({ month: row.month, scope: row.scope, project: row.project, category: row.category, task: row.task, income: Number(row.income), expenses: Number(row.expenses), count: Number(row.count) }));
   const total = summarize(data), months = groupBy(data, "month"), categoryGroups = groupBy(data, "category"), scopes = groupBy(data, "scope");

@@ -9,8 +9,8 @@ export function businessPeriod(month:string,today:string){
   const previousEnd=current?`${previousMonth}-${String(Math.min(Number(today.slice(8)),Number(monthEnd(previousMonth).slice(8)))).padStart(2,"0")}`:monthEnd(previousMonth);
   return {month,start:`${month}-01`,end,previousStart:`${previousMonth}-01`,previousEnd,trendStart:`${monthOffset(month,-5)}-01`,current};
 }
-export function businessSummary(lines:BusinessLine[],start:string,end:string,costs:Record<string,CostGroup>={}){
-  const selected=lines.filter(l=>l.owner==="ME"&&l.scope==="BUSINESS"&&l.status==="POSTED"&&["INCOME","EXPENSE","ACCRUED_EXPENSE"].includes(l.type)&&l.transactionDate>=start&&l.transactionDate<=end);
+export function businessSummary(lines:BusinessLine[],start:string,end:string,costs:Record<string,CostGroup>={},owner:"ME"|"WIFE"="ME"){
+  const selected=lines.filter(l=>l.owner===owner&&l.scope==="BUSINESS"&&l.status==="POSTED"&&["INCOME","EXPENSE","ACCRUED_EXPENSE"].includes(l.type)&&l.transactionDate>=start&&l.transactionDate<=end);
   let revenue=0,expenses=0;
   const groups:Record<CostGroup,number>={DIRECT:0,OVERHEAD:0,FINANCE:0,TAX:0,UNCLASSIFIED:0};
   const categories=new Map<string,{id:string;name:string;group:CostGroup;amount:number}>();

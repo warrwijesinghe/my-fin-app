@@ -9,5 +9,5 @@ export type TransactionStatus = "PENDING_REVIEW" | "POSTED" | "VOID";
 export type AccountBalance = {
   id: string; name: string; type: AccountType; scope: MoneyScope; holder: string | null;
   creditLimit: number | null; includeInAvailable: number | boolean; isActive: number | boolean; balance: number;
-  owner?: Owner;
+  owner?: Owner; isSharedCash?: boolean;
 };

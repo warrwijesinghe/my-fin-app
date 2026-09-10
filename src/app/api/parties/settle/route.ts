@@ -1,14 +1,14 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/route-auth";
-import { relativeRedirect } from "@/lib/auth";
+import { currentOwner, relativeRedirect } from "@/lib/auth";
 import { transaction } from "@/lib/db";
 import { validDate } from "@/lib/analytics";
 import { moneyCents } from "@/lib/expenses";
 const schema=z.object({submissionId:z.string().uuid(),transactionId:z.string().uuid(),accountId:z.string().min(1).max(191),amount:z.coerce.number().positive().max(999999999).refine(n=>Math.abs(n*100-Math.round(n*100))<0.00001),transactionDate:z.string().refine(validDate),description:z.string().max(300)});
 class InputError extends Error {}
 export async function POST(request:Request){
-  const denied=await requireApiSession();if(denied)return denied;
+  const denied=await requireApiSession(); if(denied)return denied; const viewer=await currentOwner();
   const f=await request.formData(),parsed=schema.safeParse({submissionId:f.get("submissionId"),transactionId:f.get("transactionId"),accountId:f.get("accountId"),amount:f.get("amount"),transactionDate:f.get("transactionDate"),description:f.get("description")||""});
   const fromBills=f.get("returnTo")==="bills";
   if(!parsed.success)return relativeRedirect(fromBills?"/bills?error=1":"/master-data/parties?error=1");
@@ -36,9 +36,9 @@ export async function POST(request:Request){
     const account=accounts[0];if(!account||account.owner!==invoice.owner||!(invoice.type==="ACCRUED_EXPENSE"?["CASH","BANK","SAVINGS","CREDIT_CARD"]:["CASH","BANK","SAVINGS"]).includes(account.type))throw new InputError("account");
     const id=d.submissionId,cashImpact=outstanding>0?d.amount:-d.amount;
     await c.execute("INSERT INTO FinancialTransaction (id,type,status,amount,transactionDate,description,counterparty,scope,taxScope,owner,household,accountId,projectId,taskId,partyId,updatedAt) VALUES (?,'PARTY_PAYMENT','POSTED',?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))",[id,d.amount,d.transactionDate,d.description||`Settlement: ${invoice.description||invoice.id}`,invoice.counterparty,invoice.scope,invoice.taxScope,invoice.owner,invoice.household,d.accountId,invoice.projectId,invoice.taskId,partyId||null]);
-    await c.execute("UPDATE FinancialTransaction SET settlesTransactionId=? WHERE id=?",[invoice.id,id]);
+    await c.execute("UPDATE FinancialTransaction SET settlesTransactionId=?,spentBy=?,recordedBy=? WHERE id=?",[invoice.id,viewer,viewer,id]);
     if(partyId)await c.execute("INSERT INTO PartyEntry (id,partyId,transactionId,settlesTransactionId,amount) VALUES (?,?,?,?,?)",[crypto.randomUUID(),partyId,id,invoice.id,-cashImpact]);
-    if(invoice.owner==="ME")await c.execute("INSERT INTO AccountEntry (id,accountId,transactionId,amount,entryDate) VALUES (?,?,?,?,?)",[crypto.randomUUID(),d.accountId,id,account.type==="CREDIT_CARD"?-cashImpact:cashImpact,d.transactionDate]);
+    await c.execute("INSERT INTO AccountEntry (id,accountId,transactionId,amount,entryDate) VALUES (?,?,?,?,?)",[crypto.randomUUID(),d.accountId,id,account.type==="CREDIT_CARD"?-cashImpact:cashImpact,d.transactionDate]);
     if(invoice.accrualId)await c.execute("UPDATE AccruedExpense SET paidAmount=paidAmount+?,status=?,updatedAt=NOW(3) WHERE id=?",[d.amount,cents===Math.abs(outstanding)?"PAID":"PARTIALLY_PAID",invoice.accrualId]);
     await c.execute("INSERT INTO AuditLog (id,transactionId,action,details) VALUES (?,?,'PARTY_SETTLEMENT',?)",[crypto.randomUUID(),id,JSON.stringify({invoiceId:invoice.id,amount:d.amount})]);
   });}catch(error){if(error instanceof InputError)return relativeRedirect(fromBills||!partyId?`/bills?bill=${d.transactionId}&error=1`:partyId?`/parties/${partyId}?owner=${owner}&error=1`:"/master-data/parties?error=1");throw error}

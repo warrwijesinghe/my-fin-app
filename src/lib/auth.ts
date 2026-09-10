@@ -5,45 +5,51 @@ import { redirect } from "next/navigation";
 
 const COOKIE_NAME = "fin_session";
 
-function getSessionValue() {
-  const password = process.env.FIN_APP_PASSWORD;
-  const secret = process.env.FIN_SESSION_SECRET;
-  if (!password || !secret) return null;
-  return crypto.createHmac("sha256", secret).update(password).digest("hex");
+export type SessionOwner = "ME" | "WIFE";
+function credential(owner: SessionOwner) {
+  return owner === "ME" ? process.env.FIN_APP_PASSWORD : process.env.FIN_WIFE_PASSWORD_HASH;
 }
-
-export function isCorrectPassword(password: string) {
-  const expected = process.env.FIN_APP_PASSWORD;
+function getSessionValue(owner: SessionOwner) {
+  const value = credential(owner), secret = process.env.FIN_SESSION_SECRET;
+  if (!value || !secret) return null;
+  return crypto.createHmac("sha256", secret).update("v2:"+owner+":"+value).digest("hex");
+}
+export function isCorrectPassword(password: string, owner: SessionOwner = "ME") {
+  const expected = credential(owner);
   if (!expected) return false;
-  if (password.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(password), Buffer.from(expected));
+  if (owner === "WIFE") {
+    const [salt, hash] = expected.split(":");
+    if (!salt || !hash || !/^[a-f0-9]{128}$/.test(hash)) return false;
+    return crypto.timingSafeEqual(crypto.scryptSync(password, salt, 64), Buffer.from(hash, "hex"));
+  }
+  const a=Buffer.from(password), b=Buffer.from(expected);
+  return a.length===b.length && crypto.timingSafeEqual(a,b);
 }
-
-export async function hasSession() {
-  const expected = getSessionValue();
+export async function sessionOwner(): Promise<SessionOwner | null> {
   const received = (await cookies()).get(COOKIE_NAME)?.value;
-  if (!expected || !received || received.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+  if (!received) return null;
+  for (const owner of ["ME", "WIFE"] as const) {
+    const expected = getSessionValue(owner);
+    const value = expected ? owner+"."+expected : "";
+    if (value && Buffer.byteLength(received) === Buffer.byteLength(value) && crypto.timingSafeEqual(Buffer.from(received), Buffer.from(value))) return owner;
+  }
+  return null;
 }
-
+export async function currentOwner(): Promise<SessionOwner> {
+  const owner=await sessionOwner();
+  if (!owner) throw new Error("Unauthorized");
+  return owner;
+}
+export async function hasSession() { return (await sessionOwner()) !== null; }
 export async function requireSession() {
-  if (!(await hasSession())) redirect("/login");
+  const owner=await sessionOwner();
+  if (!owner) redirect("/login");
+  return owner;
 }
-
-export function sessionCookie() {
-  const value = getSessionValue();
-  if (!value) throw new Error("FIN_APP_PASSWORD and FIN_SESSION_SECRET must be configured.");
-  return {
-    name: COOKIE_NAME,
-    value,
-    options: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      path: "/",
-      maxAge: 60 * 60 * 12,
-    },
-  };
+export function sessionCookie(owner: SessionOwner = "ME") {
+  const value=getSessionValue(owner);
+  if (!value) throw new Error("Login credentials and FIN_SESSION_SECRET must be configured.");
+  return { name:COOKIE_NAME, value:owner+"."+value, options:{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax" as const,path:"/",maxAge:60*60*12} };
 }
 
 export function relativeRedirect(path: string) {

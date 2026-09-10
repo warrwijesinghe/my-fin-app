@@ -26,11 +26,11 @@ assert.equal(costChanges(summary,businessSummary(data,'2026-08-01','2026-08-07',
 assert.equal(dueBucket(null,'2026-09-07'),'No due date');assert.equal(dueBucket('2026-09-07','2026-09-07'),'Not overdue');assert.equal(dueBucket('2026-08-31','2026-09-07'),'1–30 days overdue');assert.equal(dueBucket('2026-07-31','2026-09-07'),'31–60 days overdue');assert.equal(dueBucket('2026-01-01','2026-09-07'),'61+ days overdue');
 (async()=>{
   const writes=[];
-  const mocks={'@/lib/auth':{relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/business':business,'@/lib/household':household,'@/lib/db':{rows:async()=>[{id:'overhead'}],execute:async(sql,v)=>{assert.equal((sql.match(/\?/g)||[]).length,v.length);writes.push(v)}}};
+  const mocks={'@/lib/auth':{currentOwner:async()=> 'ME',relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/business':business,'@/lib/household':household,'@/lib/db':{rows:async()=>[{id:'overhead'}],execute:async(sql,v)=>{assert.equal((sql.match(/\?/g)||[]).length,v.length);writes.push(v)}}};
   const post=load('src/app/api/business/route.ts',mocks).POST,request=f=>new Request('http://localhost/api/business',{method:'POST',body:new URLSearchParams(f)});
   assert.equal(await post(request({month:'2026-09',intent:'targets',revenue:'1000',expenses:'0',profit:''})),'/business?month=2026-09&saved=1');
-  assert.deepEqual(JSON.parse(writes[0][1]),{revenue:1000,expenses:0,profit:null});
-  await post(request({month:'2026-09',intent:'cost',categoryId:'overhead',costGroup:'OVERHEAD'}));assert.equal(writes[1][0],'businessCost:overhead');assert.equal(JSON.parse(writes[1][1]),'OVERHEAD');
+  assert.deepEqual(JSON.parse(writes[0][2]),{revenue:1000,expenses:0,profit:null});
+  await post(request({month:'2026-09',intent:'cost',categoryId:'overhead',costGroup:'OVERHEAD'}));assert.equal(writes[1][1],'businessCost:overhead');assert.equal(JSON.parse(writes[1][2]),'OVERHEAD');
   for(const patch of [{month:'2026-13'},{revenue:'-1'},{expenses:'0.001'}])await post(request({month:'2026-09',intent:'targets',revenue:'100',expenses:'50',profit:'20',...patch}));
   assert.equal(writes.length,2);
   const denied=load('src/app/api/business/route.ts',{...mocks,'@/lib/route-auth':{requireApiSession:async()=>'unauthorized'}}).POST;
@@ -42,9 +42,9 @@ assert.equal(dueBucket(null,'2026-09-07'),'No due date');assert.equal(dueBucket(
   const mobile=navHTML.match(/<nav class="mobile-nav"[\s\S]*?<\/nav>/)[0];
   assert.equal((mobile.match(/<a /g)||[]).length,3);assert.ok(mobile.includes('More'));assert.ok(!mobile.includes('Analytics'));assert.ok(navHTML.includes('href="/business"'));
   const queries=[];
-  const page=load('src/app/business/page.tsx',{'next/link':Link,'@/components/nav':navigation,'@/components/export-business':{ExportBusiness:()=>React.createElement('button',{},'Export report')},'@/lib/auth':{requireSession:async()=>{}},'@/lib/business':business,'@/lib/household':household,'@/lib/analytics':analytics,'./business.css':{},'@/lib/db':{rows:async(sql,v=[])=>{
+  const page=load('src/app/business/page.tsx',{'next/link':Link,'@/components/nav':navigation,'@/components/export-business':{ExportBusiness:()=>React.createElement('button',{},'Export report')},'@/lib/auth':{requireSession:async()=>"ME"},'@/lib/business':business,'@/lib/household':household,'@/lib/analytics':analytics,'./business.css':{},'@/lib/db':{rows:async(sql,v=[])=>{
     assert.equal((sql.match(/\?/g)||[]).length,v.length,sql);queries.push(sql);
-    if(sql.includes('FROM IncomeExpenseActivity')){assert.ok(sql.includes("t.scope='BUSINESS'"));assert.ok(sql.includes("t.owner='ME'"));return data;}
+    if(sql.includes('FROM IncomeExpenseActivity')){assert.ok(sql.includes("t.scope='BUSINESS'"));return data;}
     if(sql.includes('FROM AppSetting'))return Object.entries(mapping).map(([id,value])=>({key:`businessCost:${id}`,value:JSON.stringify(value)}));
     if(sql.includes('FROM Category'))return [{id:'overhead',name:'Power'}];
     if(sql.includes('FROM AccountEntry')){assert.ok(sql.includes("t.scope='BUSINESS'"));assert.ok(sql.includes("a.type IN ('CASH','BANK','SAVINGS')"));return [{receipts:700,payments:100}];}

@@ -10,8 +10,8 @@ export type TaxTransaction = {
 export const taxLabel = (row: TaxTransaction): MoneyScope => row.taxScope ?? row.scope;
 export const isIncomeExpense = (row: TaxTransaction) => row.status === "POSTED" && ["INCOME", "EXPENSE", "ACCRUED_EXPENSE"].includes(row.type);
 
-export function incomeTaxReport(transactions: TaxTransaction[], scope: MoneyScope) {
-  const selected = transactions.filter(row => row.owner!=="WIFE" && isIncomeExpense(row) && taxLabel(row) === scope);
+export function incomeTaxReport(transactions: TaxTransaction[], scope: MoneyScope, owner: "ME"|"WIFE" = "ME") {
+  const selected = transactions.filter(row => (row.owner??"ME")===owner && isIncomeExpense(row) && taxLabel(row) === scope);
   const data: AnalyticsRow[] = selected.map(row => ({
     month: row.transactionDate.slice(0, 7), scope: taxLabel(row), category: row.category,
     project: "", task: "", count: 1,
@@ -21,8 +21,8 @@ export function incomeTaxReport(transactions: TaxTransaction[], scope: MoneyScop
   return { transactions: selected, data, total: summarize(data) };
 }
 
-export function incomeTaxCsv(transactions: TaxTransaction[], scope: MoneyScope, start: string, end: string) {
-  const report = incomeTaxReport(transactions, scope);
+export function incomeTaxCsv(transactions: TaxTransaction[], scope: MoneyScope, start: string, end: string, owner: "ME"|"WIFE" = "ME") {
+  const report = incomeTaxReport(transactions, scope, owner);
   const data = [
     ["Income tax report", scope], ["Period", start, end], ["Currency", "LKR"],
     ["Classification basis", "Tax label"],

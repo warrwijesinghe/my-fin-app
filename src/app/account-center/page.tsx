@@ -16,7 +16,7 @@ export default async function AccountCenterPage({ searchParams }: { searchParams
     SELECT a.owner,a.id,a.name,a.type,a.scope,a.holder,a.creditLimit,a.includeInAvailable,a.isActive,
       COALESCE(SUM(e.amount),0) AS balance
     FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id
-    WHERE a.owner='ME' GROUP BY a.id ORDER BY a.isActive DESC,a.scope,a.name
+    WHERE 1=1 GROUP BY a.id ORDER BY a.isActive DESC,a.scope,a.name
   `);
   const accounts = result.map(a => ({ ...a, balance: Number(a.balance), creditLimit: a.creditLimit == null ? null : Number(a.creditLimit), isActive: Boolean(a.isActive), includeInAvailable: Boolean(a.includeInAvailable) }));
   const selected = requested ? accounts.find(a => a.id === requested) : accounts[0];

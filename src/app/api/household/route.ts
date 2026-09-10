@@ -1,7 +1,7 @@
 import { validMonth } from "@/lib/household";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { rows, execute, transaction } from "@/lib/db";
+import { householdRows as rows, execute, transaction } from "@/lib/db";
 import { requireApiSession } from "@/lib/route-auth";
 import { relativeRedirect } from "@/lib/auth";
 
@@ -18,7 +18,7 @@ export async function POST(request:Request) {
       if(!found[0])return false;
       await c.execute("UPDATE FinancialTransaction SET household=?,updatedAt=NOW(3) WHERE id=?",[household,id.data]);
       await c.execute("INSERT INTO AuditLog (id,transactionId,action,details) VALUES (?,?,?,?)",[crypto.randomUUID(),id.data,"HOUSEHOLD_LABEL_CHANGED",JSON.stringify({before:Boolean(found[0].household),after:household})]);return true;
-    });
+    }, "household");
     return relativeRedirect(back+(changed?"&saved=1":"&error=1")+"#classify");
   }
   if(form.get("intent")!=="budget")return relativeRedirect(back+"&error=1");

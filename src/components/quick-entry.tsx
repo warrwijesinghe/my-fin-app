@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ExpenseItems, newLine, type DraftLine, type ItemOption } from "./expense-items";
 
 type EntryType = "INCOME" | "EXPENSE" | "TRANSFER" | "DEBT_PAYMENT" | "ACCRUED_EXPENSE";
-type Account = { id: string; name: string; type: string; owner?:"ME"|"WIFE" };
+type Account = { id: string; name: string; type: string; isSharedCash?:boolean; owner?:"ME"|"WIFE" };
 type Option = { id: string; name: string; projectId?: string | null; kind?:string };
 
 const entryTypes: { value: EntryType; label: string; detail: string }[] = [
@@ -90,15 +90,15 @@ export function QuickEntry(props: EntryProps) {
 function EntryForm({ type, accounts, projects, tasks, categories, today, items, initialOwner="ME", initialHousehold=false, parties=[], draft, initialScope="PERSONAL" }: EntryProps & { type: EntryType }) {
   const router=useRouter();
   const [scope, setScope] = useState(draft?.scope ?? initialScope);
-  const [owner,setOwner]=useState<"ME"|"WIFE">(draft?.owner ?? (type==="EXPENSE"||type==="ACCRUED_EXPENSE"?initialOwner:"ME"));
-  const [household,setHousehold]=useState(draft?.household ?? (initialHousehold||initialOwner==="WIFE"));
+  const owner=initialOwner;
+  const [household,setHousehold]=useState(draft?.household ?? initialHousehold);
   const [lines,setLines]=useState<DraftLine[]>(()=>draft?.lines ?? (type==="EXPENSE"||type==="ACCRUED_EXPENSE"?[newLine()]:[]));
   const [accountId,setAccountId]=useState(draft?.accountId ?? "");
   const [paymentTiming,setPaymentTiming]=useState(draft?.paymentTiming ?? (type==="ACCRUED_EXPENSE"?"CREDIT":"PAID"));
   const [taxScope, setTaxScope] = useState<string | null>(draft?.taxScope ?? null);
   const itemTotalCents=lines.reduce((sum,l)=>sum+Math.round(Number(l.amount||0)*100),0);
   const incompleteItems=!!draft&&lines.length>0&&itemTotalCents!==Math.round(Number(draft.amount)*100);
-  const eligibleAccounts=accounts.filter(a=>(a.owner??"ME")===owner);
+  const eligibleAccounts=accounts.filter(a=>((a.owner??"ME")===owner || (type==="EXPENSE"&&a.isSharedCash)) && !(type==="INCOME"&&a.isSharedCash));
   const debtAccounts = eligibleAccounts.filter((account) => ["CREDIT_CARD", "LOAN"].includes(account.type));
   const needsAccount = type !== "ACCRUED_EXPENSE" && paymentTiming !== "CREDIT";
   const needsDestination = type === "TRANSFER" || type === "DEBT_PAYMENT";
@@ -109,11 +109,11 @@ function EntryForm({ type, accounts, projects, tasks, categories, today, items, 
       {supportsClassification&&<label>Payment<select name="paymentTiming" value={paymentTiming} onChange={e=>setPaymentTiming(e.target.value)} disabled={type==="ACCRUED_EXPENSE"}><option value="PAID">Paid / received now</option><option value="CREDIT">On credit — settle later</option></select></label>}
       {!lines.length&&<label>Amount<input name="amount" defaultValue={draft?.amount} readOnly={!!draft} type="number" min="0.01" step="0.01" required /></label>}
       <label>Date<input name="transactionDate" type="date" defaultValue={draft?.transactionDate ?? today} required /></label>
-      {(type==="EXPENSE"||type==="ACCRUED_EXPENSE")&&<><label>Paid by / responsible person<select name="owner" value={owner} onChange={e=>{const next=e.target.value as "ME"|"WIFE";setOwner(next);setAccountId("");if(next==="WIFE"){setScope("PERSONAL");setHousehold(true)}}}><option value="ME">Me</option><option value="WIFE">Wife</option></select></label><label className="check"><input type="checkbox" name="household" checked={household} onChange={e=>setHousehold(e.target.checked)}/>Household expense</label><input name="returnTo" type="hidden" value={initialHousehold?"household":""}/></>}
-      <label>Actual label<select name="scope" value={scope} onChange={(event) => setScope(event.target.value)}><option value="PERSONAL">Personal</option>{owner!=="WIFE"&&<option value="BUSINESS">Business</option>}</select><small>Used for dashboards and analytics.</small></label>
-      {supportsClassification && owner!=="WIFE" && <label>Tax label<select name="taxScope" value={taxScope ?? scope} onChange={(event) => setTaxScope(event.target.value)}><option value="PERSONAL">Personal</option><option value="BUSINESS">Business</option></select><small>Used only for income tax reports. Can differ from the actual label.</small></label>}
+      {(type==="EXPENSE"||type==="ACCRUED_EXPENSE")&&<><label>Who spent the cash?<select name="spentBy" defaultValue={initialOwner}><option value="ME">Ayya</option><option value="WIFE">Sudu Manike</option></select><small>The payment account determines whose money is used.</small></label><label className="check"><input type="checkbox" name="household" checked={household} onChange={e=>setHousehold(e.target.checked)}/>Household expense</label><input name="returnTo" type="hidden" value={initialHousehold?"household":""}/></>}
+      <label>Actual label<select name="scope" value={scope} onChange={(event) => setScope(event.target.value)}><option value="PERSONAL">Personal</option><option value="BUSINESS">Business</option></select><small>Used for dashboards and analytics.</small></label>
+      {supportsClassification && <label>Tax label<select name="taxScope" value={taxScope ?? scope} onChange={(event) => setTaxScope(event.target.value)}><option value="PERSONAL">Personal</option><option value="BUSINESS">Business</option></select><small>Used only for income tax reports. Can differ from the actual label.</small></label>}
       {needsAccount && <label>{type === "INCOME" ? "Received into" : type === "TRANSFER" || type === "DEBT_PAYMENT" ? "Pay from" : "Paid from"}<select name="accountId" value={accountId} onChange={e=>setAccountId(e.target.value)} required><option value="" disabled>Select account</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type.replace("_", " ")})</option>)}</select></label>}
-      {needsAccount&&!eligibleAccounts.length&&<p className="span-2">No {owner==="WIFE"?"wife":"personal or business"} payment account available. <a href="/master-data?section=ACCOUNT">Create {owner==="WIFE"?"a Wife Cash":"an"} account in Master Data.</a></p>}
+      {needsAccount&&!eligibleAccounts.length&&<p className="span-2">No payment account available. <a href="/master-data?section=ACCOUNT">Create an account in Master Data.</a></p>}
       {needsDestination && <label>{type === "DEBT_PAYMENT" ? "Pay this debt" : "Transfer to"}<select name="destinationAccountId" defaultValue="" required><option value="" disabled>Select account</option>{(type === "DEBT_PAYMENT" ? debtAccounts : eligibleAccounts).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type.replace("_", " ")})</option>)}</select></label>}
       {paymentTiming === "CREDIT" && <label>Due date<input name="dueDate" type="date" defaultValue={draft?.dueDate?.slice(0,10) ?? ""}/></label>}
       {scope === "BUSINESS" && <label>Business project (optional)<select name="projectId" defaultValue={draft?.projectId ?? ""}><option value="">General business / no project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>}

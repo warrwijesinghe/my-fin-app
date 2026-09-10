@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { relativeRedirect } from "@/lib/auth";
+import { currentOwner, relativeRedirect } from "@/lib/auth";
 import { requireApiSession } from "@/lib/route-auth";
 import { execute,rows } from "@/lib/db";
 import { COST_GROUPS } from "@/lib/business";
 import { validMonth } from "@/lib/household";
 const amount=z.preprocess(v=>v===""||v==null?null:v,z.coerce.number().min(0).max(999999999).refine(n=>Math.abs(n*100-Math.round(n*100))<0.00001).nullable());
 export async function POST(request:Request){
-  const denied=await requireApiSession();if(denied)return denied;
+  const denied=await requireApiSession(); if(denied)return denied; const viewer=await currentOwner();
   const f=await request.formData(),month=String(f.get("month")||"");
   if(!validMonth(month))return relativeRedirect("/business?error=1");
   const back=`/business?month=${month}`;let key:string,value:unknown;
@@ -20,6 +20,6 @@ export async function POST(request:Request){
     if(!parsed.success)return relativeRedirect(`${back}&error=1`);
     key=`businessTargets:${month}`;value=parsed.data;
   }else return relativeRedirect(`${back}&error=1`);
-  await execute("INSERT INTO AppSetting (`key`,value,updatedAt) VALUES (?,?,NOW(3)) ON DUPLICATE KEY UPDATE value=VALUES(value),updatedAt=NOW(3)",[key,JSON.stringify(value)]);
+  await execute("INSERT INTO AppSetting (owner,`key`,value,updatedAt) VALUES (?,?,?,NOW(3)) ON DUPLICATE KEY UPDATE value=VALUES(value),updatedAt=NOW(3)",[viewer,key,JSON.stringify(value)]);
   return relativeRedirect(`${back}&saved=1`);
 }

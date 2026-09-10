@@ -10,7 +10,7 @@ import { requireSession } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string; captured?: string; captureError?: string }> }) {
-  await requireSession();
+  const viewer=await requireSession();
   const data = await getDashboardData();
   const availableAccounts = data.accounts.filter((account) => account.includeInAvailable && ["CASH", "BANK", "SAVINGS"].includes(account.type));
   const { account: accountId, recent, captured, captureError } = await searchParams;
@@ -21,7 +21,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <><Nav /><main>
-      <div className="page-heading"><div><p className="eyebrow">Private financial control</p><h1>Your money, clearly visible</h1><p className="muted">Confirmed records only. Pending items never change balances.</p></div><QuickCapture /></div>
+      <div className="page-heading"><div><p className="eyebrow">{viewer==="WIFE"?"JAD Buddhika · Sudu Manike":"Ayya"} · Private financial control</p><h1>Your money, clearly visible</h1><p className="muted">Confirmed records only. Pending items never change balances.</p></div><QuickCapture /></div>
       {captured && <p role="status">Saved to Review. Account balances are unchanged. <Link href="/review">Complete entry</Link></p>}
       {captureError && <p role="alert">Enter a positive amount with at most two decimal places and a description.</p>}
       <section className="metric-grid">

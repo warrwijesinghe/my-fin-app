@@ -1,7 +1,7 @@
 import { moneyCents, normalizedQuantity } from "./expenses";
 export type HouseholdLine = {
   id:string; transactionId:string; transactionDate:string; description:string|null; owner:"ME"|"WIFE";
-  type:string; status:string; household:number|boolean; amount:number|string;
+  spentBy?:"ME"|"WIFE"; type:string; status:string; household:number|boolean; amount:number|string;
   categoryId:string|null; category:string; itemId:string|null; item:string|null;
   quantity:number|string|null; unit:string|null; account:string|null;
 };

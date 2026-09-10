@@ -36,7 +36,7 @@ async function create(formPatch={},dbPatch={}) {
     if(sql.startsWith('INSERT INTO ExpenseLine'))saved.push(values);
     return [[],[]];
   }});committed=true;return result;}};
-  const route=load('src/app/api/transactions/route.ts',{'@/lib/auth':{relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/db':db,'@/lib/types':types,'@/lib/expenses':expenses,'@/lib/analytics':analytics});
+  const route=load('src/app/api/transactions/route.ts',{'@/lib/auth':{currentOwner:async()=>dbPatch.viewer||'ME',relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/db':db,'@/lib/types':types,'@/lib/expenses':expenses,'@/lib/analytics':analytics});
   const result=await route.POST(new Request('http://localhost/api/transactions',{method:'POST',body:new URLSearchParams({type:'EXPENSE',transactionDate:'2026-09-07',scope:'PERSONAL',taxScope:'BUSINESS',accountId:'cash',household:'on',returnTo:'household',lines:JSON.stringify([{name:'Rice',categoryId:'food',amount:100,quantity:1,unit:'kg'},{name:' RICE ',categoryId:'food',amount:50,quantity:'',unit:''}]),...formPatch})}));
   return {result,statements,items,saved,committed};
 }
@@ -44,18 +44,18 @@ async function create(formPatch={},dbPatch={}) {
   const own=await create();assert.equal(own.result,'/household?created=1');assert.equal(own.items.size,1);assert.equal(own.saved.length,2);assert.equal(own.saved[1][4],null);
   const tx=own.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction'));assert.equal(tx.values[2],150);assert.equal(tx.values[6],'PERSONAL');assert.equal(tx.values[7],'BUSINESS');assert.equal(tx.values[8],'ME');assert.equal(tx.values[9],true);
   assert.equal(own.statements.find(s=>s.sql.startsWith('INSERT INTO AccountEntry')).values[3],-150);
-  const wife=await create({owner:'WIFE'},{owner:'WIFE'});assert.equal(wife.committed,true);assert.equal(wife.statements.filter(s=>s.sql.startsWith('INSERT INTO AccountEntry')).length,0);assert.equal(wife.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction')).values[8],'WIFE');
+  const wife=await create({owner:'WIFE'},{owner:'WIFE',viewer:'WIFE'});assert.equal(wife.committed,true);assert.equal(wife.statements.filter(s=>s.sql.startsWith('INSERT INTO AccountEntry')).length,1);assert.equal(wife.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction')).values[8],'WIFE');
   assert.equal((await create({type:'INCOME',lines:'[]',amount:100},{owner:'WIFE'})).committed,false);
   assert.equal((await create({type:'ACCRUED_EXPENSE',accountId:''})).statements.filter(s=>s.sql.startsWith('INSERT INTO AccountEntry')).length,0);
   assert.equal((await create({}, {badCategory:true})).committed,false);
   assert.equal((await create({lines:'not json'})).statements.length,0);
   assert.equal((await create({transactionDate:'2026-02-30'})).statements.length,0);
   assert.equal((await create({lines:JSON.stringify([{name:'Rice',categoryId:'food',amount:1,quantity:2,unit:''}])})).statements.length,0);
-  const finance=load('src/lib/finance.ts',{'@/lib/db':{rows:async(sql)=>{if(sql.startsWith('SELECT a.*'))return [{id:'me',type:'CASH',owner:'ME',balance:100,includeInAvailable:true},{id:'wife',type:'CASH',owner:'WIFE',balance:9999,includeInAvailable:true}];assert.ok(sql.includes("owner='ME'"),sql);return []}}});
+  const finance=load('src/lib/finance.ts',{'@/lib/db':{rows:async(sql)=>{if(sql.startsWith('SELECT a.*'))return [{id:'me',type:'CASH',owner:'ME',balance:100,includeInAvailable:true}];return []}}});
   const dashboard=await finance.getDashboardData();assert.equal(dashboard.availableCash,100);assert.equal(dashboard.assets,100);
   const apiStatements=[];
   const execute=async(sql,values)=>{assert.equal((sql.match(/\?/g)||[]).length,values.length);apiStatements.push({sql,values});return [[{household:false}]]};
-  const common={'@/lib/auth':{relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/db':{execute,rows:async()=>[{id:'food'}],transaction:async fn=>fn({execute})},'@/lib/household':household,'@/lib/expenses':expenses};
+  const common={'@/lib/auth':{currentOwner:async()=> 'ME',relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/db':{execute,householdRows:async()=>[{id:'food'}],rows:async()=>[{id:'food'}],transaction:async fn=>fn({execute})},'@/lib/household':household,'@/lib/expenses':expenses};
   const householdApi=load('src/app/api/household/route.ts',common);
   const request=body=>new Request('http://localhost/api/household',{method:'POST',body:new URLSearchParams(body)});
   assert.ok((await householdApi.POST(request({intent:'budget',month:'2026-09',amount:'5000'}))).includes('saved=1'));
@@ -76,6 +76,6 @@ async function create(formPatch={},dbPatch={}) {
   const {Household}=load('src/components/household.tsx',{'next/link':({href,children,...p})=>React.createElement('a',{href,...p},children),'@/lib/household':household,'@/lib/analytics':analytics});
   const html=renderToStaticMarkup(React.createElement(Household,{month:'2026-08',today:'2026-09-07',lines:data,budgets:[],categories:[{id:'food',name:'Food'}],unpaid:[],notice:''}));
   if(process.env.HOUSEHOLD_PREVIEW){fs.mkdirSync('generated',{recursive:true});fs.writeFileSync('generated/household-preview.html','<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+fs.readFileSync('src/app/globals.css','utf8')+fs.readFileSync('src/app/mobile.css','utf8')+'</style></head><body><main class="household-page">'+html+'</main></body></html>');}
-  assert.ok(html.includes('Monthly item purchases'));assert.ok(html.includes('1.5 kg'));assert.ok(html.includes('Wife'));assert.ok(html.includes('195.00'));
+  assert.ok(html.includes('Monthly item purchases'));assert.ok(html.includes('1.5 kg'));assert.ok(html.includes('Sudu Manike'));assert.ok(html.includes('195.00'));
   console.log('Household tests passed: payer isolation, optional quantity, normalized units, category/item totals, shopping averages, item deduplication, atomic writes, validation, accrual ledger exclusion, dashboard filtering and page rendering.');
 })().catch(e=>{console.error(e);process.exitCode=1});

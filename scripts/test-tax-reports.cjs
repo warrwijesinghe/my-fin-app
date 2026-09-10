@@ -48,7 +48,7 @@ assert.ok(tax.incomeTaxCsv([row('=HYPERLINK("bad")', 'INCOME', 1, 'BUSINESS', 'B
 async function runCreate(extra) {
   const statements = [];
   const route = load('src/app/api/transactions/route.ts', {
-    '@/lib/auth': { relativeRedirect: value => value }, '@/lib/route-auth': { requireApiSession: async () => null }, '@/lib/types': types, '@/lib/analytics': analytics, '@/lib/expenses': expenses,
+    '@/lib/auth': { currentOwner:async()=> 'ME', relativeRedirect: value => value }, '@/lib/route-auth': { requireApiSession: async () => null }, '@/lib/types': types, '@/lib/analytics': analytics, '@/lib/expenses': expenses,
     '@/lib/db': { rows: async () => [{ id: 'account', type: 'BANK' }], transaction: async fn => fn({ execute: async (sql, values) => { if(sql.startsWith("SELECT"))return [[{id:"account",type:"BANK",owner:"ME"}]]; statements.push({sql,values}); return [[],[]]; } }) },
   });
   const result = await route.POST(new Request('http://localhost/api/transactions', { method: 'POST', body: new URLSearchParams({ type: 'EXPENSE', amount: '200', transactionDate: '2026-09-07', scope: 'PERSONAL', accountId: 'account', ...extra }) }));
@@ -58,7 +58,7 @@ async function runCreate(extra) {
 async function runUpdate(taxScope, item, denied = null) {
   const statements = [];
   const route = load('src/app/api/transactions/[id]/tax-label/route.ts', {
-    '@/lib/auth': { relativeRedirect: value => value }, '@/lib/route-auth': { requireApiSession: async () => denied }, '@/lib/types': types, '@/lib/analytics': analytics,
+    '@/lib/auth': { currentOwner:async()=> 'ME', relativeRedirect: value => value }, '@/lib/route-auth': { requireApiSession: async () => denied }, '@/lib/types': types, '@/lib/analytics': analytics,
     '@/lib/db': { transaction: async fn => fn({ execute: async (sql, values) => { statements.push({ sql, values }); return [item ? [item] : []]; } }) },
   });
   const result = await route.POST(new Request('http://localhost/api/transactions/id/tax-label', { method: 'POST', body: new URLSearchParams({ taxScope, start: '2026-09-01', end: '2026-09-30', reportScope: 'BUSINESS' }) }), { params: Promise.resolve({ id: 'id' }) });

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { RowDataPacket } from "mysql2";
-import { relativeRedirect } from "@/lib/auth";
+import { currentOwner, relativeRedirect } from "@/lib/auth";
 import { requireApiSession } from "@/lib/route-auth";
 import { transaction } from "@/lib/db";
 import { SCOPES } from "@/lib/types";
@@ -19,7 +19,7 @@ const schema = z.object({
 });
 class InputError extends Error {}
 export async function POST(request: Request) {
-  const denied = await requireApiSession(); if (denied) return denied;
+  const denied=await requireApiSession(); if(denied)return denied; const viewer=await currentOwner();
   const form = await request.formData();
   const draftId=String(form.get("draftId")||"");
   const saveDraft=form.get("intent")==="saveDraft";
@@ -32,6 +32,9 @@ export async function POST(request: Request) {
   const parsedLines = linesSchema.safeParse(rawLines);
   if (!parsed.success || !parsedLines.success) return fail("invalid");
   const d = parsed.data, lines = parsedLines.data;
+  d.owner=viewer;
+  const spentBy=z.enum(["ME","WIFE"]).safeParse(form.get("spentBy")||viewer);
+  if(!spentBy.success)return fail("invalid");
   const expense = ["EXPENSE","ACCRUED_EXPENSE"].includes(d.type);
   if (lines.length && !expense) return fail("invalid");
   let amount = lines.length ? lines.reduce((sum,line) => sum + moneyCents(line.amount),0)/100 : d.amount;
@@ -47,15 +50,15 @@ export async function POST(request: Request) {
       const find = async (sql: string, values: unknown[]) => (await c.execute<RowDataPacket[]>(sql, values))[0][0];
       const draft=d.draftId ? await find("SELECT * FROM FinancialTransaction WHERE id=? AND status='PENDING_REVIEW' FOR UPDATE",[d.draftId]) : null;
       if(d.draftId){
-        if(!draft || (draft.type!==d.type && !(["EXPENSE","ACCRUED_EXPENSE"].includes(draft.type)&&["EXPENSE","ACCRUED_EXPENSE"].includes(d.type))))throw new InputError("already-posted");
+        if(!draft || draft.owner!==viewer || (draft.type!==d.type && !(["EXPENSE","ACCRUED_EXPENSE"].includes(draft.type)&&["EXPENSE","ACCRUED_EXPENSE"].includes(d.type))))throw new InputError("already-posted");
         const total=lines.reduce((sum,line)=>sum+moneyCents(line.amount),0);
         if(lines.length && (total>moneyCents(draft.amount) || (!saveDraft&&total!==moneyCents(draft.amount))))throw new InputError("item-total");
         if(!lines.length&&d.amount!=null&&moneyCents(d.amount)!==moneyCents(draft.amount))throw new InputError("item-total");
         amount=Number(draft.amount);
       }
       if(!amount)throw new InputError("invalid");
-      const account = d.accountId ? await find("SELECT id,type,owner FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.accountId]) : null;
-      const dest = d.destinationAccountId ? await find("SELECT id,type,owner FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.destinationAccountId]) : null;
+      const account = d.accountId ? await find("SELECT id,type,owner,isSharedCash FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.accountId]) : null;
+      const dest = d.destinationAccountId ? await find("SELECT id,type,owner,isSharedCash FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.destinationAccountId]) : null;
       if ((d.accountId && !account) || (!saveDraft && !credit && !account) || (d.destinationAccountId && !dest)) throw new InputError("account");
       const owner = credit ? d.owner : account?.owner ?? d.owner;
       if(credit&&d.accountId)throw new InputError("account");
@@ -63,8 +66,10 @@ export async function POST(request: Request) {
       if(d.partyId&&!party)throw new InputError("party");
       if(party && (moving || !["BOTH",d.type==="INCOME"?"CUSTOMER":"SUPPLIER"].includes(party.kind)))throw new InputError("party");
       if(credit && !saveDraft && (!party||party.isCash))throw new InputError("credit-party");
-      if (owner === "WIFE" && (!expense || d.scope !== "PERSONAL")) throw new InputError("wife");
-      if (dest?.owner === "WIFE" || (moving && owner === "WIFE")) throw new InputError("wife");
+      if(account && account.owner!==viewer && (!account.isSharedCash || d.type!=="EXPENSE"))throw new InputError("account");
+      if(dest && (dest.owner!==viewer || account?.owner!==viewer))throw new InputError("accounts");
+      if(account?.isSharedCash && d.type==="INCOME")throw new InputError("Use-transfer-to-top-up");
+      if(account && account.owner!==viewer && d.projectId)throw new InputError("shared-metadata");
       if (d.type === "DEBT_PAYMENT" && !["CREDIT_CARD","LOAN"].includes(dest?.type)) throw new InputError("accounts");
       const categoryIds = [...new Set(lines.length ? lines.map(l=>l.categoryId) : d.categoryId ? [d.categoryId] : [])];
       for (const categoryId of categoryIds) {
@@ -95,17 +100,19 @@ export async function POST(request: Request) {
         if (!item?.isActive) throw new InputError("item");
         await c.execute("INSERT INTO ExpenseLine (id,transactionId,itemId,categoryId,quantity,unit,amount) VALUES (?,?,?,?,?,?,?)",[crypto.randomUUID(),id,item.id,line.categoryId,line.quantity??null,line.unit||null,line.amount]);
       }
-      // Wife accounts are spending logs, not cash-balance accounts. Unpaid bills have no ledger impact.
-      if (!saveDraft && account && owner === "ME" && !credit) {
+      // Both owners use the same ledger. Shared cash is one account, not mirrored entries.
+      if (!saveDraft && account && !credit) {
         const debt = ["CREDIT_CARD","LOAN"].includes(account.type);
         const cashImpact=d.type === "INCOME" ? amount : -amount;
         const impact=debt ? -cashImpact : cashImpact;
         await c.execute("INSERT INTO AccountEntry (id,accountId,transactionId,amount,entryDate) VALUES (?,?,?,?,?)",[crypto.randomUUID(),account.id,id,impact,d.transactionDate]);
         if (dest) await c.execute("INSERT INTO AccountEntry (id,accountId,transactionId,amount,entryDate) VALUES (?,?,?,?,?)",[crypto.randomUUID(),dest.id,id,["CREDIT_CARD","LOAN"].includes(dest.type) ? -amount : amount,d.transactionDate]);
       }
+      await c.execute("UPDATE FinancialTransaction SET spentBy=?,recordedBy=? WHERE id=?",[spentBy.data,viewer,id]);
       await c.execute("INSERT INTO AuditLog (id,transactionId,action,details) VALUES (?,?,?,?)",[crypto.randomUUID(),id,saveDraft?"DRAFT_UPDATED":"TRANSACTION_POSTED",JSON.stringify({owner,household,lines:lines.length})]);
-    });
+    }, "cash");
   } catch (error) { if (error instanceof InputError) return fail(error.message); throw error; }
   if(d.draftId)return relativeRedirect(saveDraft?`/review/${d.draftId}?saved=1`:"/review?posted=1");
+  if(form.get("returnTo")==="shared-cash")return relativeRedirect("/shared-cash?saved=1");
   return relativeRedirect(form.get("returnTo") === "household" ? "/household?created=1" : "/?created=1");
 }

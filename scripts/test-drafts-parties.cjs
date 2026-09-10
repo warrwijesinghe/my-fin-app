@@ -11,13 +11,13 @@ const customer={id:'customer',name:'Customer',kind:'CUSTOMER',isCash:false};
 const accounts={cash:{id:'cash',type:'BANK',owner:'ME'},card:{id:'card',type:'CREDIT_CARD',owner:'ME'},wife:{id:'wife',type:'CASH',owner:'WIFE'}};
 const line=(name,amount,quantity='',unit='')=>({name,amount,quantity,unit,categoryId:'food'});
 const request=(form)=>new Request('http://localhost/api/test',{method:'POST',body:new URLSearchParams(form)});
-function harness({draft=null,party=supplier,invoice=null,outstanding=0,denied=null}={}){
+function harness({draft=null,party=supplier,invoice=null,outstanding=0,denied=null,viewer="ME"}={}){
   const state={draft,invoice,outstanding,billPaid:invoice?invoice.amount-Math.abs(outstanding):0,writes:[],lines:[]};let chain=Promise.resolve();
   const execute=async(sql,v=[])=>{
     assert.equal((sql.match(/\?/g)||[]).length,v.length,sql);
     if(sql.startsWith('SELECT * FROM FinancialTransaction')&&sql.includes("PENDING_REVIEW"))return [[state.draft?.status==='PENDING_REVIEW'?structuredClone(state.draft):null].filter(Boolean)];
     if(sql.startsWith('SELECT * FROM FinancialTransaction'))return [[state.invoice].filter(Boolean)];
-    if(sql.startsWith('SELECT settlesTransactionId'))return [state.writes.filter(w=>w.sql==='UPDATE FinancialTransaction SET settlesTransactionId=? WHERE id=?'&&w.v[1]===v[0]).map(w=>({settlesTransactionId:w.v[0]}))];
+    if(sql.startsWith('SELECT settlesTransactionId'))return [state.writes.filter(w=>w.sql.startsWith('UPDATE FinancialTransaction SET settlesTransactionId=')&&w.v[3]===v[0]).map(w=>({settlesTransactionId:w.v[0]}))];
     if(sql.startsWith('SELECT amount,paidAmount,status FROM AccruedExpense'))return [[{amount:state.invoice.amount,paidAmount:state.billPaid,status:state.invoice.billStatus??(state.billPaid>=state.invoice.amount?'PAID':state.billPaid>0?'PARTIALLY_PAID':'OPEN')}]];
     if(sql.startsWith('SELECT COALESCE(SUM(amount)'))return [[{balance:state.outstanding}]];
     if(sql.startsWith('SELECT id,type,owner'))return [[accounts[v[0]]].filter(Boolean)];
@@ -32,16 +32,16 @@ function harness({draft=null,party=supplier,invoice=null,outstanding=0,denied=nu
     if(sql.startsWith('INSERT INTO PartyEntry')&&sql.includes('settlesTransactionId'))state.outstanding+=v[4];
     return [{affectedRows:1}];
   };
-  const db={transaction:fn=>{const work=chain.then(async()=>{const before=structuredClone(state);try{return await fn({execute})}catch(e){Object.assign(state,before);throw e}});chain=work.catch(()=>{});return work}};
-  const mocks={'@/lib/auth':{relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>denied},'@/lib/db':db,'@/lib/types':types,'@/lib/expenses':expenses,'@/lib/analytics':analytics};
+  const db={masterRecordInUse:async()=>false,transaction:fn=>{const work=chain.then(async()=>{const before=structuredClone(state);try{return await fn({execute})}catch(e){Object.assign(state,before);throw e}});chain=work.catch(()=>{});return work}};
+  const mocks={'@/lib/auth':{currentOwner:async()=>viewer,relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>denied},'@/lib/db':db,'@/lib/types':types,'@/lib/expenses':expenses,'@/lib/analytics':analytics};
   return {state,mocks,route:file=>load(file,mocks).POST};
 }
-const draft=()=>({id:draftId,type:'EXPENSE',status:'PENDING_REVIEW',amount:12000});
+const draft=()=>({id:draftId,owner:'ME',type:'EXPENSE',status:'PENDING_REVIEW',amount:12000});
 const full={draftId,type:'EXPENSE',transactionDate:'2026-09-07',scope:'BUSINESS',description:'Food City bill',accountId:'cash',lines:JSON.stringify([line('Sugar',500,2,'kg'),line('Tea',750,200,'g'),line('Other groceries',10750)])};
 (async()=>{
   const capture=harness(),quick=capture.route('src/app/api/quick-entries/route.ts');
   assert.equal(await quick(request({type:'EXPENSE',amount:12000,description:'Food City bill'})),'/?captured=1');
-  assert.equal(capture.state.writes.length,2);assert.ok(capture.state.writes[0].sql.includes("'PENDING_REVIEW'"));
+  assert.equal(capture.state.writes.length,3);assert.ok(capture.state.writes[0].sql.includes("'PENDING_REVIEW'"));
   assert.ok(!capture.state.writes.some(w=>/AccountEntry|PartyEntry|AccruedExpense/.test(w.sql)));
   const before=capture.state.writes.length;
   for(const amount of ['-1','0','0.001','NaN'])assert.equal(await quick(request({type:'EXPENSE',amount,description:'bill'})),'/?captureError=1');
@@ -123,14 +123,14 @@ const full={draftId,type:'EXPENSE',transactionDate:'2026-09-07',scope:'BUSINESS'
   assert.equal(legacyBill.state.billPaid,12000);assert.equal(legacyBill.state.outstanding,0);
   assert.equal(legacyBill.state.writes.filter(w=>w.sql.startsWith('INSERT INTO AccountEntry')).at(-1).v[3],4000,'Card settlement increases card debt');
   assert.equal(legacyBill.state.writes.filter(w=>w.sql.startsWith('UPDATE AccruedExpense')).at(-1).v[1],'PAID');
-  const wifeBill=harness({invoice:{...invoice,partyId:null,owner:'WIFE'},outstanding:-12000});
+  const wifeBill=harness({viewer:'WIFE',invoice:{...invoice,partyId:null,owner:'WIFE'},outstanding:-12000});
   await wifeBill.route('src/app/api/parties/settle/route.ts')(request({...legacyPayment,submissionId:crypto.randomUUID(),accountId:'wife'}));
-  assert.equal(wifeBill.state.billPaid,5000);assert.ok(!wifeBill.state.writes.some(w=>w.sql.startsWith('INSERT INTO AccountEntry')));
+  assert.equal(wifeBill.state.billPaid,5000);assert.equal(wifeBill.state.writes.find(w=>w.sql.startsWith('INSERT INTO AccountEntry')).v[3],-5000);
   const voidBill=harness({invoice:{...invoice,partyId:null,billStatus:'VOID'},outstanding:-12000});
   assert.ok((await voidBill.route('src/app/api/parties/settle/route.ts')(request(legacyPayment))).includes('error=1'));assert.equal(voidBill.state.writes.length,0);
 
   const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
-  const billsPage=load('src/app/bills/page.tsx',{'next/link':({href,children,...p})=>React.createElement('a',{href,...p},children),'@/components/nav':{Nav:()=>null},'@/lib/auth':{requireSession:async()=>{}},'@/lib/format':{lkr:n=>Number(n).toFixed(2)},'@/lib/db':{rows:async(sql,v=[])=>{
+  const billsPage=load('src/app/bills/page.tsx',{'next/link':({href,children,...p})=>React.createElement('a',{href,...p},children),'@/components/nav':{Nav:()=>null},'@/lib/auth':{requireSession:async()=>"ME"},'@/lib/format':{lkr:n=>Number(n).toFixed(2)},'@/lib/db':{rows:async(sql,v=[])=>{
     assert.equal((sql.match(/\?/g)||[]).length,v.length);
     if(sql.includes('FROM Account WHERE'))return [{id:'cash',name:'Cash',type:'CASH'}];
     if(sql.includes('t.settlesTransactionId=?'))return [{id:'payment',amount:5000,transactionDate:'2026-09-08',description:'Part payment',account:'Cash'}];

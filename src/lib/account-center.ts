@@ -49,8 +49,8 @@ export function summarizeStatement(statement: StatementEntry[], from = "", to = 
   };
 }
 
-export function portfolioTotals(accounts: AccountBalance[]) {
-  accounts = accounts.filter(a=>a.owner!=="WIFE");
+export function portfolioTotals(accounts: AccountBalance[], owner: "ME"|"WIFE" = "ME") {
+  accounts = accounts.filter(a=>(a.owner??"ME")===owner);
   const sum = (items: AccountBalance[], value: (a: AccountBalance) => number) => items.reduce((total, a) => total + cents(value(a)), 0) / 100;
   const assets = sum(accounts.filter(a => !isDebtAccount(a.type)), a => a.balance);
   const debt = sum(accounts.filter(a => isDebtAccount(a.type)), a => a.balance);

@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (reportScope.success) query.set("taxScope", reportScope.data);
   if (!parsed.success) { query.set("error", "invalid"); return relativeRedirect(`/reports/tax?${query}`); }
   const saved = await transaction(async connection => {
-    const [items] = await connection.execute<RowDataPacket[]>("SELECT scope,taxScope FROM FinancialTransaction WHERE id=? AND owner='ME' AND status='POSTED' AND type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') FOR UPDATE", [id]);
+    const [items] = await connection.execute<RowDataPacket[]>("SELECT scope,taxScope FROM FinancialTransaction WHERE id=? AND status='POSTED' AND type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') FOR UPDATE", [id]);
     const item = items[0];
     if (!item) return false;
     const before = item.taxScope ?? item.scope;

@@ -60,9 +60,11 @@ enum CategoryKind {
 }
 
 model Account {
+  isSharedCash Boolean @default(false)
+  @@unique([owner, name])
   owner Owner @default(ME)
   id                   String         @id @default(cuid())
-  name                 String         @unique @db.VarChar(120)
+  name                 String          @db.VarChar(120)
   type                 AccountType
   scope                MoneyScope
   holder               String?        @db.VarChar(80)
@@ -82,8 +84,10 @@ model Account {
 }
 
 model Project {
+  @@unique([owner,name])
+  owner Owner @default(ME)
   id          String        @id @default(cuid())
-  name        String        @unique @db.VarChar(120)
+  name        String         @db.VarChar(120)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   tasks       Task[]
@@ -91,6 +95,7 @@ model Project {
 }
 
 model Task {
+  owner Owner @default(ME)
   id          String        @id @default(cuid())
   name        String        @db.VarChar(140)
   scope       MoneyScope
@@ -104,6 +109,7 @@ model Task {
 }
 
 model Category {
+  owner Owner @default(ME)
   kind CategoryKind @default(EXPENSE)
   items Item[]
   expenseLines ExpenseLine[]
@@ -118,6 +124,9 @@ model Category {
 }
 
 model FinancialTransaction {
+  spentBy Owner @default(ME)
+  recordedBy Owner @default(ME)
+  revision Int @default(0)
   settlesTransactionId String?
   settlesTransaction FinancialTransaction? @relation("InvoicePayments", fields:[settlesTransactionId], references:[id])
   billPayments FinancialTransaction[] @relation("InvoicePayments")
@@ -193,6 +202,7 @@ model AccruedExpense {
 }
 
 model FinancialGoal {
+  owner Owner @default(ME)
   id              String    @id @default(cuid())
   name            String    @db.VarChar(120)
   type            GoalType
@@ -206,7 +216,9 @@ model FinancialGoal {
 }
 
 model AppSetting {
-  key             String    @id @db.VarChar(100)
+  @@id([owner,key])
+  owner Owner @default(ME)
+  key             String @db.VarChar(100)
   value           String    @db.Text
   updatedAt       DateTime  @updatedAt
 }
@@ -261,8 +273,10 @@ enum PartyKind {
  BOTH
 }
 model Party {
+  @@unique([name])
+  owner Owner @default(ME)
  id String @id @default(uuid()) @db.VarChar(191)
- name String @unique @db.VarChar(140)
+ name String  @db.VarChar(140)
  kind PartyKind
  contactNo String? @db.VarChar(40)
  isCash Boolean @default(false)

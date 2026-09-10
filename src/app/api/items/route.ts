@@ -11,6 +11,7 @@ export async function POST(request: Request) {
   const p = z.object({ id:z.string().uuid().optional(), name:z.string().trim().min(1).max(140),categoryId:z.string().min(1),defaultUnit:z.enum(UNITS).optional() }).safeParse(Object.fromEntries([...form].map(([k,v])=>[k,String(v)||undefined])));
   if (!p.success) return relativeRedirect("/master-data/items?error=1");
   const d=p.data;
+  if(d.id && !(await rows<any>("SELECT id FROM Item WHERE id=?",[d.id])).length)return relativeRedirect("/master-data/items?error=1");
   const [category]=await rows<any>("SELECT id FROM Category WHERE id=? AND kind='EXPENSE' AND isActive=1",[d.categoryId]);
   if(!category)return relativeRedirect("/master-data/items?error=1");
   try {

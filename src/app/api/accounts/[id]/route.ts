@@ -15,8 +15,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const id = idSchema.safeParse(rawId);
   if (!id.success) return redirect("error");
   const form = await request.formData();
-  const [account] = await rows<{ id: string; type: string } & any>("SELECT id,type,owner FROM `Account` WHERE id=?", [id.data]);
-  if (!account) return redirect("error");
+  const [account] = await rows<{ id: string; type: string } & any>("SELECT id,type,owner,isSharedCash FROM `Account` WHERE id=?", [id.data]);
+  if (!account || account.isSharedCash) return redirect("error");
   if (form.get("intent") === "delete") {
     const [entries] = await rows<{ count: number } & any>("SELECT COUNT(*) count FROM `FinancialTransaction` WHERE accountId=? OR destinationAccountId=?", [id.data,id.data]);
     if (Number(entries?.count || 0) > 0) return redirect("has_entries");
@@ -25,6 +25,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const data = updateSchema.safeParse({ name: form.get("name"), holder: form.get("holder") || undefined, creditLimit: form.get("creditLimit") || undefined, includeInAvailable: form.get("includeInAvailable") === "on" });
   if (!data.success) return redirect("error");
-  await execute("UPDATE `Account` SET name=?,holder=?,creditLimit=?,includeInAvailable=?,updatedAt=NOW(3) WHERE id=?", [data.data.name, data.data.holder || null, account.type === "CREDIT_CARD" ? data.data.creditLimit ?? null : null, account.owner!=="WIFE"&&data.data.includeInAvailable, id.data]);
+  await execute("UPDATE `Account` SET name=?,holder=?,creditLimit=?,includeInAvailable=?,updatedAt=NOW(3) WHERE id=?", [data.data.name, data.data.holder || null, account.type === "CREDIT_CARD" ? data.data.creditLimit ?? null : null, data.data.includeInAvailable, id.data]);
   return redirect("updated");
 }

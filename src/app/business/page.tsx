@@ -10,7 +10,7 @@ import "./business.css";
 export const dynamic="force-dynamic";
 type Targets={revenue:number|null;expenses:number|null;profit:number|null};
 export default async function BusinessPage({searchParams}:{searchParams:Promise<{month?:string;saved?:string;error?:string}>}){
-  await requireSession();const params=await searchParams;
+  const viewer=await requireSession();const params=await searchParams;
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Colombo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   const period=businessPeriod(params.month||today.slice(0,7),today);
   if(!period)return <><Nav/><main><h1>Business</h1><p role="alert">Choose a valid reporting month up to the current month.</p><Link href="/business">Current month</Link></main></>;
@@ -18,22 +18,22 @@ export default async function BusinessPage({searchParams}:{searchParams:Promise<
   const [activity,settings,categories,cashRows,receivables,payables,pendingRows]=await Promise.all([
     rows<any>(`SELECT t.id,t.activityId,t.transactionDate,t.type,t.status,t.owner,t.scope,t.amount,t.categoryId,COALESCE(c.name,'Uncategorized') category,t.projectId,COALESCE(p.name,'General business / no project') project
       FROM IncomeExpenseActivity t LEFT JOIN Category c ON c.id=t.categoryId LEFT JOIN Project p ON p.id=t.projectId
-      WHERE t.owner='ME' AND t.scope='BUSINESS' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=?`,[trendStart,end]),
+      WHERE t.scope='BUSINESS' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? AND t.transactionDate<=?`,[trendStart,end]),
     rows<any>("SELECT `key`,value FROM AppSetting WHERE `key` LIKE 'businessCost:%' OR `key`=?",[`businessTargets:${month}`]),
     rows<any>("SELECT id,name FROM Category WHERE kind='EXPENSE' ORDER BY name"),
     rows<any>(`SELECT COALESCE(SUM(CASE WHEN e.amount>0 THEN e.amount ELSE 0 END),0) receipts,COALESCE(SUM(CASE WHEN e.amount<0 THEN -e.amount ELSE 0 END),0) payments
       FROM AccountEntry e JOIN Account a ON a.id=e.accountId JOIN FinancialTransaction t ON t.id=e.transactionId
-      WHERE a.owner='ME' AND a.type IN ('CASH','BANK','SAVINGS') AND t.owner='ME' AND t.scope='BUSINESS' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','PARTY_PAYMENT') AND e.entryDate>=? AND e.entryDate<=?`,[start,end]),
-    rows<any>("SELECT o.id,o.partyId,t.description,t.dueDate,p.name, o.balance amount FROM CreditOutstanding o JOIN FinancialTransaction t ON t.id=o.id LEFT JOIN Party p ON p.id=o.partyId WHERE o.owner='ME' AND o.scope='BUSINESS' AND o.type='INCOME' AND o.balance>0.005 ORDER BY t.dueDate,o.id"),
-    rows<any>("SELECT t.id,t.partyId,a.description,a.dueDate,COALESCE(p.name,t.counterparty,'Unlinked supplier') name,GREATEST(a.amount-a.paidAmount,0) amount FROM AccruedExpense a JOIN FinancialTransaction t ON t.accrualId=a.id LEFT JOIN Party p ON p.id=t.partyId WHERE a.owner='ME' AND t.owner='ME' AND t.scope='BUSINESS' AND t.status='POSTED' AND a.status IN ('OPEN','PARTIALLY_PAID') AND a.amount>a.paidAmount ORDER BY a.dueDate,t.id"),
-    rows<any>("SELECT COUNT(*) count FROM FinancialTransaction WHERE owner='ME' AND status='PENDING_REVIEW'")
+      WHERE a.type IN ('CASH','BANK','SAVINGS') AND t.scope='BUSINESS' AND t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','PARTY_PAYMENT') AND e.entryDate>=? AND e.entryDate<=?`,[start,end]),
+    rows<any>("SELECT o.id,o.partyId,t.description,t.dueDate,p.name, o.balance amount FROM CreditOutstanding o JOIN FinancialTransaction t ON t.id=o.id LEFT JOIN Party p ON p.id=o.partyId WHERE o.scope='BUSINESS' AND o.type='INCOME' AND o.balance>0.005 ORDER BY t.dueDate,o.id"),
+    rows<any>("SELECT t.id,t.partyId,a.description,a.dueDate,COALESCE(p.name,t.counterparty,'Unlinked supplier') name,GREATEST(a.amount-a.paidAmount,0) amount FROM AccruedExpense a JOIN FinancialTransaction t ON t.accrualId=a.id LEFT JOIN Party p ON p.id=t.partyId WHERE t.scope='BUSINESS' AND t.status='POSTED' AND a.status IN ('OPEN','PARTIALLY_PAID') AND a.amount>a.paidAmount ORDER BY a.dueDate,t.id"),
+    rows<any>("SELECT COUNT(*) count FROM FinancialTransaction WHERE status='PENDING_REVIEW'")
   ]);
   const costs:Record<string,CostGroup>={};let targets:Targets={revenue:null,expenses:null,profit:null};
   for(const s of settings){try{const v=JSON.parse(s.value);if(s.key.startsWith("businessCost:")&&COST_GROUPS.includes(v))costs[s.key.slice(13)]=v;
     if(s.key===`businessTargets:${month}`&&v&&["revenue","expenses","profit"].every(k=>v[k]===null||(Number.isFinite(v[k])&&v[k]>=0)))targets=v;
   }catch{/* Invalid optional settings remain unset. */}}
-  const lines=activity as BusinessLine[],current=businessSummary(lines,start,end,costs),previous=businessSummary(lines,previousStart,previousEnd,costs);
-  const months=Array.from({length:6},(_,i)=>monthOffset(month,i-5)).map(m=>({month:m,...businessSummary(lines,`${m}-01`,m===month?end:monthEnd(m),costs)}));
+  const lines=activity as BusinessLine[],current=businessSummary(lines,start,end,costs,viewer),previous=businessSummary(lines,previousStart,previousEnd,costs,viewer);
+  const months=Array.from({length:6},(_,i)=>monthOffset(month,i-5)).map(m=>({month:m,...businessSummary(lines,`${m}-01`,m===month?end:monthEnd(m),costs,viewer)}));
   const changes=costChanges(current,previous),receipts=Number(cashRows[0]?.receipts??0),payments=Number(cashRows[0]?.payments??0);
   const sum=(items:any[])=>items.reduce((s,i)=>s+Math.round(Number(i.amount)*100),0)/100;
   const overdue=(items:any[])=>items.filter(i=>i.dueDate&&String(i.dueDate).slice(0,10)<today);
