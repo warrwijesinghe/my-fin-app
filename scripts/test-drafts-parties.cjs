@@ -37,7 +37,7 @@ function harness({draft=null,party=supplier,invoice=null,outstanding=0,denied=nu
   return {state,mocks,route:file=>load(file,mocks).POST};
 }
 const draft=()=>({id:draftId,owner:'ME',type:'EXPENSE',status:'PENDING_REVIEW',amount:12000});
-const full={draftId,type:'EXPENSE',transactionDate:'2026-09-07',scope:'BUSINESS',description:'Food City bill',accountId:'cash',lines:JSON.stringify([line('Sugar',500,2,'kg'),line('Tea',750,200,'g'),line('Other groceries',10750)])};
+const full={draftId,type:'EXPENSE',expenseKind:'BUSINESS',transactionDate:'2026-09-07',scope:'BUSINESS',description:'Food City bill',accountId:'cash',lines:JSON.stringify([line('Sugar',500,2,'kg'),line('Tea',750,200,'g'),line('Other groceries',10750)])};
 (async()=>{
   const capture=harness(),quick=capture.route('src/app/api/quick-entries/route.ts');
   assert.equal(await quick(request({type:'EXPENSE',amount:12000,description:'Food City bill'})),'/?captured=1');
@@ -72,7 +72,7 @@ const full={draftId,type:'EXPENSE',transactionDate:'2026-09-07',scope:'BUSINESS'
   assert.equal(legacy.state.writes.length,0);
 
   const credit=harness(),create=credit.route('src/app/api/transactions/route.ts');
-  const bill={type:'EXPENSE',amount:12000,transactionDate:'2026-09-07',scope:'BUSINESS',paymentTiming:'CREDIT',partyId:'supplier'};
+  const bill={type:'EXPENSE',expenseKind:'BUSINESS',amount:12000,transactionDate:'2026-09-07',scope:'BUSINESS',paymentTiming:'CREDIT',partyId:'supplier'};
   assert.equal(await create(request(bill)),'/?created=1');
   assert.equal(credit.state.writes.find(w=>w.sql.startsWith('INSERT INTO PartyEntry')).v[3],-12000);
   assert.ok(credit.state.writes.some(w=>w.sql.startsWith('INSERT INTO AccruedExpense')));

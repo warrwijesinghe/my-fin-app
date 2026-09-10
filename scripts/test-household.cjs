@@ -37,12 +37,12 @@ async function create(formPatch={},dbPatch={}) {
     return [[],[]];
   }});committed=true;return result;}};
   const route=load('src/app/api/transactions/route.ts',{'@/lib/auth':{currentOwner:async()=>dbPatch.viewer||'ME',relativeRedirect:v=>v},'@/lib/route-auth':{requireApiSession:async()=>null},'@/lib/db':db,'@/lib/types':types,'@/lib/expenses':expenses,'@/lib/analytics':analytics});
-  const result=await route.POST(new Request('http://localhost/api/transactions',{method:'POST',body:new URLSearchParams({type:'EXPENSE',transactionDate:'2026-09-07',scope:'PERSONAL',taxScope:'BUSINESS',accountId:'cash',household:'on',returnTo:'household',lines:JSON.stringify([{name:'Rice',categoryId:'food',amount:100,quantity:1,unit:'kg'},{name:' RICE ',categoryId:'food',amount:50,quantity:'',unit:''}]),...formPatch})}));
+  const result=await route.POST(new Request('http://localhost/api/transactions',{method:'POST',body:new URLSearchParams({type:'EXPENSE',expenseKind:'HOUSEHOLD',transactionDate:'2026-09-07',scope:'PERSONAL',taxScope:'BUSINESS',accountId:'cash',household:'on',returnTo:'household',lines:JSON.stringify([{name:'Rice',categoryId:'food',amount:100,quantity:1,unit:'kg'},{name:' RICE ',categoryId:'food',amount:50,quantity:'',unit:''}]),...formPatch})}));
   return {result,statements,items,saved,committed};
 }
 (async()=>{
   const own=await create();assert.equal(own.result,'/household?created=1');assert.equal(own.items.size,1);assert.equal(own.saved.length,2);assert.equal(own.saved[1][4],null);
-  const tx=own.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction'));assert.equal(tx.values[2],150);assert.equal(tx.values[6],'PERSONAL');assert.equal(tx.values[7],'PERSONAL');assert.equal(tx.values[8],'ME');assert.equal(tx.values[9],true);
+  const tx=own.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction'));assert.equal(tx.values[2],150);assert.equal(tx.values[6],'PERSONAL');assert.equal(tx.values[7],'BUSINESS');assert.equal(tx.values[8],'ME');assert.equal(tx.values[9],true);
   assert.equal(own.statements.find(s=>s.sql.startsWith('INSERT INTO AccountEntry')).values[3],-150);
   const wife=await create({owner:'WIFE'},{owner:'WIFE',viewer:'WIFE'});assert.equal(wife.committed,true);assert.equal(wife.statements.filter(s=>s.sql.startsWith('INSERT INTO AccountEntry')).length,1);assert.equal(wife.statements.find(s=>s.sql.startsWith('INSERT INTO FinancialTransaction')).values[8],'WIFE');
   assert.equal((await create({type:'INCOME',lines:'[]',amount:100},{owner:'WIFE'})).committed,false);

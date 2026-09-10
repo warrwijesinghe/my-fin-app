@@ -51,7 +51,7 @@ async function runCreate(extra) {
     '@/lib/auth': { currentOwner:async()=> 'ME', relativeRedirect: value => value }, '@/lib/route-auth': { requireApiSession: async () => null }, '@/lib/types': types, '@/lib/analytics': analytics, '@/lib/expenses': expenses,
     '@/lib/db': { rows: async () => [{ id: 'account', type: 'BANK' }], transaction: async fn => fn({ execute: async (sql, values) => { if(sql.startsWith("SELECT"))return [[{id:"account",type:"BANK",owner:"ME"}]]; statements.push({sql,values}); return [[],[]]; } }) },
   });
-  const result = await route.POST(new Request('http://localhost/api/transactions', { method: 'POST', body: new URLSearchParams({ type: 'EXPENSE', amount: '200', transactionDate: '2026-09-07', scope: 'PERSONAL', accountId: 'account', ...extra }) }));
+  const result = await route.POST(new Request('http://localhost/api/transactions', { method: 'POST', body: new URLSearchParams({ type: 'EXPENSE', expenseKind: 'HOUSEHOLD', amount: '200', transactionDate: '2026-09-07', scope: 'PERSONAL', accountId: 'account', ...extra }) }));
   return { result, statements };
 }
 

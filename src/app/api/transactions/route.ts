@@ -9,7 +9,7 @@ import { validDate } from "@/lib/analytics";
 import { linesSchema, moneyCents, normalizeItem } from "@/lib/expenses";
 
 const schema = z.object({
-  draftId:z.string().uuid().optional(), partyId:z.string().max(191).optional(), paymentTiming:z.enum(["PAID","CREDIT"]).optional(),
+  draftId:z.string().uuid().optional(), partyId:z.string().max(191).optional(), paymentTiming:z.enum(["PAID","CREDIT"]).optional(), expenseKind:z.enum(["HOUSEHOLD","BUSINESS"]).optional(),
   type: z.enum(["INCOME","EXPENSE","TRANSFER","ACCRUED_EXPENSE","DEBT_PAYMENT"]),
   amount: z.coerce.number().positive().max(999999999).optional(), transactionDate: z.string().refine(validDate),
   scope: z.enum(SCOPES), taxScope: z.enum(SCOPES).optional(), owner: z.enum(["ME","WIFE"]).default("ME"),
@@ -36,11 +36,14 @@ export async function POST(request: Request) {
   const spentBy=z.enum(["ME","WIFE"]).safeParse(form.get("spentBy")||viewer);
   if(!spentBy.success)return fail("invalid");
   const expense = ["EXPENSE","ACCRUED_EXPENSE"].includes(d.type);
-  const household = expense && form.get("household") === "on";
+  if (expense && !d.expenseKind) return fail("expense-kind");
+  const household = expense && d.expenseKind === "HOUSEHOLD";
   if (household) {
     d.scope="PERSONAL";
-    d.taxScope="PERSONAL";
     d.projectId=undefined;
+  } else if (expense) {
+    d.scope="BUSINESS";
+    d.taxScope="BUSINESS";
   }
   if (lines.length && !expense) return fail("invalid");
   let amount = lines.length ? lines.reduce((sum,line) => sum + moneyCents(line.amount),0)/100 : d.amount;
@@ -58,9 +61,10 @@ export async function POST(request: Request) {
       if(d.draftId){
         if(!draft || draft.owner!==viewer || (draft.type!==d.type && !(["EXPENSE","ACCRUED_EXPENSE"].includes(draft.type)&&["EXPENSE","ACCRUED_EXPENSE"].includes(d.type))))throw new InputError("already-posted");
         const total=lines.reduce((sum,line)=>sum+moneyCents(line.amount),0);
-        if(lines.length && (total>moneyCents(draft.amount) || (!saveDraft&&total!==moneyCents(draft.amount))))throw new InputError("item-total");
+        if(lines.length && (total>moneyCents(draft.amount) || (!saveDraft&&total!==moneyCents(draft.amount)&&!d.categoryId)))throw new InputError("item-total");
         if(!lines.length&&d.amount!=null&&moneyCents(d.amount)!==moneyCents(draft.amount))throw new InputError("item-total");
         amount=Number(draft.amount);
+        if(!saveDraft&&lines.length&&total<moneyCents(draft.amount)&&d.categoryId)lines.push({name:"Unallocated remainder",categoryId:d.categoryId,amount:(moneyCents(draft.amount)-total)/100});
       }
       if(!amount)throw new InputError("invalid");
       const account = d.accountId ? await find("SELECT id,type,owner,isSharedCash FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.accountId]) : null;
