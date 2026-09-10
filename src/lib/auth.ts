@@ -7,7 +7,7 @@ const COOKIE_NAME = "fin_session";
 
 export type SessionOwner = "ME" | "WIFE";
 function credential(owner: SessionOwner) {
-  return owner === "ME" ? process.env.FIN_APP_PASSWORD : process.env.FIN_WIFE_PASSWORD_HASH;
+  return owner === "ME" ? process.env.FIN_APP_PASSWORD_HASH : process.env.FIN_WIFE_PASSWORD_HASH;
 }
 function getSessionValue(owner: SessionOwner) {
   const value = credential(owner), secret = process.env.FIN_SESSION_SECRET;
@@ -17,13 +17,9 @@ function getSessionValue(owner: SessionOwner) {
 export function isCorrectPassword(password: string, owner: SessionOwner = "ME") {
   const expected = credential(owner);
   if (!expected) return false;
-  if (owner === "WIFE") {
-    const [salt, hash] = expected.split(":");
-    if (!salt || !hash || !/^[a-f0-9]{128}$/.test(hash)) return false;
-    return crypto.timingSafeEqual(crypto.scryptSync(password, salt, 64), Buffer.from(hash, "hex"));
-  }
-  const a=Buffer.from(password), b=Buffer.from(expected);
-  return a.length===b.length && crypto.timingSafeEqual(a,b);
+  const [salt, hash] = expected.split(":");
+  if (!salt || !hash || !/^[a-f0-9]{128}$/.test(hash)) return false;
+  return crypto.timingSafeEqual(crypto.scryptSync(password, salt, 64), Buffer.from(hash, "hex"));
 }
 export async function sessionOwner(): Promise<SessionOwner | null> {
   const received = (await cookies()).get(COOKIE_NAME)?.value;

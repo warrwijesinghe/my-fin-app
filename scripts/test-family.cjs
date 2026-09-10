@@ -32,7 +32,8 @@ assert.equal(access.cashName('WIFE','WIFE'),'Cash at Ayya');
 
 (async()=>{
   let cookie='';const salt=crypto.randomBytes(16).toString('hex');
-  const auth=load('src/lib/auth.ts',{'next/headers':{cookies:async()=>({get:()=>({value:cookie})})}},{process:{env:{FIN_APP_PASSWORD:'husband-test',FIN_SESSION_SECRET:'test-secret',FIN_WIFE_PASSWORD_HASH:salt+':'+crypto.scryptSync('wife-test',salt,64).toString('hex')}}});
+  const husbandSalt=crypto.randomBytes(16).toString('hex');
+  const auth=load('src/lib/auth.ts',{'next/headers':{cookies:async()=>({get:()=>({value:cookie})})}},{process:{env:{FIN_APP_PASSWORD_HASH:husbandSalt+':'+crypto.scryptSync('husband-test',husbandSalt,64).toString('hex'),FIN_SESSION_SECRET:'test-secret',FIN_WIFE_PASSWORD_HASH:salt+':'+crypto.scryptSync('wife-test',salt,64).toString('hex')}}});
   assert.equal(auth.isCorrectPassword('husband-test','ME'),true);
   assert.equal(auth.isCorrectPassword('wife-test','WIFE'),true);
   assert.equal(auth.isCorrectPassword('wife-test','ME'),false);
