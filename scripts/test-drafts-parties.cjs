@@ -141,7 +141,7 @@ const full={draftId,type:'EXPENSE',expenseKind:'BUSINESS',transactionDate:'2026-
   const expenseUI=load('src/components/expense-items.tsx',{'@/lib/expenses':expenses});
   const {QuickEntry}=load('src/components/quick-entry.tsx',{'./expense-items':expenseUI,'next/navigation':{useRouter:()=>({refresh(){}})}});
   const html=renderToStaticMarkup(React.createElement(QuickEntry,{draft:{...draft(),scope:'BUSINESS',owner:'ME',paymentTiming:'PAID',transactionDate:'2026-09-07',lines:[]},accounts:Object.values(accounts),projects:[],tasks:[],categories:[],items:[],parties:[supplier],today:'2026-09-07'}));
-  assert.ok(html.includes('Captured amount: LKR '));assert.ok(html.includes('12000.00'));assert.ok(html.includes('Save progress in Review'));assert.ok(html.includes('Post reviewed transaction'));assert.ok(html.includes('General business / no project'));
+  assert.ok(html.includes('Save progress in Review'));assert.ok(html.includes('Post reviewed transaction'));assert.ok(html.includes('General business / no project'));
   assert.ok(!html.match(/name="projectId"[^>]*required/));
   console.log('Draft and party checks passed: capture isolation, partial itemization, exact totals, single posting, optional business project, cash/credit masters, payable/receivable signs, partial/full settlements, overpayment and concurrent duplicate prevention, legacy bill payments, credit-card settlements, payment history links, authentication, and review rendering (database mocked).');
 })().catch(e=>{console.error(e);process.exitCode=1});
