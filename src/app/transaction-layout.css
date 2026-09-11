@@ -1,2 +1,4 @@
 /* Use the desktop content width so item-entry controls stay within the panel. */
 .qe-stack,.entry-panel{max-width:100%}
+
+@media(min-width:1000px){.qe-chooser .entry-type-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.qe-chooser .entry-type{min-height:128px;padding:13px;grid-template-columns:1fr;align-content:start}.qe-chooser .qe-type-icon{margin-bottom:8px}.qe-chooser .qe-type-copy strong{font-size:14px}.qe-chooser .qe-type-copy>span{font-size:11px}.qe-chooser .qe-chevron{position:absolute;right:12px;bottom:10px}.qe-chooser .entry-type{position:relative}.qe-bills{color:var(--ink)}}

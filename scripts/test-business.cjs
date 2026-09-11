@@ -40,7 +40,7 @@ assert.equal(dueBucket(null,'2026-09-07'),'No due date');assert.equal(dueBucket(
   const navigation=load('src/components/nav.tsx',{'next/link':Link,'next/navigation':{usePathname:()=>'/business',useRouter:()=>({back(){},push(){}})}});
   const navHTML=renderToStaticMarkup(React.createElement(navigation.Nav));
   const mobile=navHTML.match(/<nav class="mobile-nav"[\s\S]*?<\/nav>/)[0];
-  assert.equal((mobile.match(/<a /g)||[]).length,3);assert.ok(mobile.includes('More'));assert.ok(!mobile.includes('Analytics'));assert.ok(navHTML.includes('href="/business"'));
+  assert.equal((mobile.match(/<a /g)||[]).length,5);assert.ok(!mobile.includes('More'));assert.ok(!mobile.includes('Analytics'));assert.ok(mobile.includes('Master Files'));assert.ok(navHTML.includes('href="/business"'));
   const queries=[];
   const page=load('src/app/business/page.tsx',{'next/link':Link,'@/components/nav':navigation,'@/components/export-business':{ExportBusiness:()=>React.createElement('button',{},'Export report')},'@/lib/auth':{requireSession:async()=>"ME"},'@/lib/business':business,'@/lib/household':household,'@/lib/analytics':analytics,'./business.css':{},'@/lib/db':{rows:async(sql,v=[])=>{
     assert.equal((sql.match(/\?/g)||[]).length,v.length,sql);queries.push(sql);

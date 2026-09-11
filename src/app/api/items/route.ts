@@ -8,6 +8,8 @@ import { UNITS, normalizeItem } from "@/lib/expenses";
 export async function POST(request: Request) {
   const denied = await requireApiSession(); if (denied) return denied;
   const form = await request.formData();
+  const back="/master-data/items";
+  if(form.get("intent")==="delete") { const id=z.string().uuid().safeParse(form.get("id")); if(!id.success||(await rows<any>("SELECT COUNT(*) count FROM ExpenseLine WHERE itemId=?",[id.data]))[0]?.count)return relativeRedirect(`${back}?error=1`); await execute("DELETE FROM Item WHERE id=?",[id.data]); return relativeRedirect(`${back}?deleted=1`); }
   const p = z.object({ id:z.string().uuid().optional(), name:z.string().trim().min(1).max(140),categoryId:z.string().min(1),defaultUnit:z.enum(UNITS).optional() }).safeParse(Object.fromEntries([...form].map(([k,v])=>[k,String(v)||undefined])));
   if (!p.success) return relativeRedirect("/master-data/items?error=1");
   const d=p.data;

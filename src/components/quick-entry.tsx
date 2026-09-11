@@ -74,11 +74,12 @@ export function QuickEntry(props: EntryProps) {
   const selected = entryTypes.find(entry => entry.value === type);
   return <div className="qe-stack">
     <div hidden={Boolean(type)}>
-      <div className="page-heading"><div><p className="eyebrow">Transactions · Step 1 of 2</p><h1>Add a financial record</h1><p className="muted">Choose what you want to record.</p></div><a className="button" href="/bills">Pay-later bills</a></div>
+      <div className="page-heading"><div><p className="eyebrow">Transactions · Step 1 of 2</p><h1>Add a financial record</h1><p className="muted">Choose what you want to record.</p></div></div>
       <section className="panel entry-panel qe-chooser" aria-label="Choose an entry type">
         <div className="section-heading"><div><h2>What are you recording?</h2><p className="muted">Select a type to open its details.</p></div></div>
         <div className="entry-type-grid">
           {entryTypes.map((entry, index) => <button ref={element => { buttons.current[entry.value] = element; }} className="entry-type qe-type" key={entry.value} onClick={() => openEntry(entry.value)} type="button"><span className={`qe-type-icon qe-icon-${entry.value.toLowerCase()}`} aria-hidden="true">{["↙", "↗", "⇄", "✓", "◷"][index]}</span><span className="qe-type-copy"><strong>{entry.label}</strong><span>{entry.detail}</span></span><span className="qe-chevron" aria-hidden="true">›</span></button>)}
+          <a className="entry-type qe-type qe-bills" href="/bills"><span className="qe-type-icon" aria-hidden="true">▤</span><span className="qe-type-copy"><strong>Pay-later bills</strong><span>View and pay recorded bills</span></span><span className="qe-chevron" aria-hidden="true">›</span></a>
         </div>
       </section>
     </div>

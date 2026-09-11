@@ -6,7 +6,9 @@ import { transaction, masterRecordInUse } from "@/lib/db";
 const schema=z.object({id:z.string().uuid().optional(),name:z.string().trim().min(2).max(140),kind:z.enum(["CUSTOMER","SUPPLIER","BOTH"]),contactNo:z.string().trim().max(40)});
 export async function POST(request:Request){
   const denied=await requireApiSession(); if(denied)return denied; const viewer=await currentOwner();
-  const f=await request.formData(),parsed=schema.safeParse({id:f.get("id")||undefined,name:f.get("name"),kind:f.get("kind"),contactNo:f.get("contactNo")||""});
+  const f=await request.formData();
+  if(f.get("intent")==="delete"){const id=z.string().uuid().safeParse(f.get("id"));if(!id.success||await masterRecordInUse("PARTY",id.data))return relativeRedirect("/master-data/parties?error=1");try{await transaction(async c=>{await c.execute("DELETE FROM Party WHERE id=?",[id.data])});}catch{return relativeRedirect("/master-data/parties?error=1")}return relativeRedirect("/master-data/parties?deleted=1")}
+  const parsed=schema.safeParse({id:f.get("id")||undefined,name:f.get("name"),kind:f.get("kind"),contactNo:f.get("contactNo")||""});
   if(!parsed.success)return relativeRedirect("/master-data/parties?error=1");
   const d=parsed.data,isCash=f.get("isCash")==="on",active=f.get("isActive")==="on";
   try{await transaction(async c=>{
