@@ -20,5 +20,5 @@ export function goalMetrics(netWorth: number, debt: number, target: number, mont
   return { gap, progress: Math.max(0, Math.min(100, netWorth / target * 100)), debtMonths: debt <= 0 ? 0 : monthlyDebt > 0 ? Math.ceil(debt / monthlyDebt) : null, wealthMonths: gap <= 0 ? 0 : monthlyWealth > 0 ? Math.ceil(gap / monthlyWealth) : null };
 }
 export function analyticsMoney(value: number | string) {
-  return new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
+  return new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(Number(value)));
 }

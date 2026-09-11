@@ -6,6 +6,7 @@ import type { AccountBalance } from "@/lib/types";
 import type { AccountEntry } from "@/lib/account-center";
 import type { RowDataPacket } from "mysql2";
 import "./account-center.css";
+import "./account-balance-colors.css";
 
 export const dynamic = "force-dynamic";
 

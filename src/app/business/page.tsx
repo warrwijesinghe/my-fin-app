@@ -48,7 +48,7 @@ export default async function BusinessPage({searchParams}:{searchParams:Promise<
     <section className="metric-grid" aria-label="Business performance">
       <article className="metric"><p>Revenue</p><strong>{money(current.revenue)}</strong><small>Includes recorded credit sales</small></article>
       <article className="metric"><p>Total costs</p><strong>{money(current.expenses)}</strong><small>Paid expenses + unpaid bills</small></article>
-      <article className={`metric ${current.profit>=0?"positive":"negative"}`}><p>Recorded net profit</p><strong>{money(current.profit)}</strong><small>{profitChange>=0?"+":""}{money(profitChange)} vs previous period</small></article>
+      <article className={`metric ${current.profit>=0?"positive":"negative"}`}><p>Recorded net profit</p><strong>{money(current.profit)}</strong><small className={profitChange>=0?"balance-positive":"balance-negative"}>{money(profitChange)} vs previous period</small></article>
       <article className="metric"><p>Net profit margin</p><strong>{current.margin===null?"—":`${current.margin.toFixed(1)}%`}</strong><small>Profit ÷ revenue · {current.count} transactions</small></article>
     </section>
     <p className="business-note">Comparison: {previousStart} to {previousEnd}. Personal, wife, pending, void, transfers and principal payments are excluded from profit. Tax labels do not change this dashboard.</p>

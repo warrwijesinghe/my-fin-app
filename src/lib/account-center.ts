@@ -54,6 +54,8 @@ export function portfolioTotals(accounts: AccountBalance[], owner: "ME"|"WIFE" =
   const sum = (items: AccountBalance[], value: (a: AccountBalance) => number) => items.reduce((total, a) => total + cents(value(a)), 0) / 100;
   const assets = sum(accounts.filter(a => !isDebtAccount(a.type)), a => a.balance);
   const debt = sum(accounts.filter(a => isDebtAccount(a.type)), a => a.balance);
-  const available = sum(accounts.filter(a => a.isActive && a.includeInAvailable && !isDebtAccount(a.type)), a => a.balance);
+  // Card debt reduces what is available to spend. A negative card balance is an
+  // overpayment/credit, so it increases available cash. Loans stay out of cash.
+  const available = sum(accounts.filter(a => a.isActive && a.includeInAvailable), a => a.type === "CREDIT_CARD" ? -a.balance : isDebtAccount(a.type) ? 0 : a.balance);
   return { assets, debt, available, net: (cents(assets) - cents(debt)) / 100 };
 }

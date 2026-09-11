@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./mobile.css";
 import "./transaction-layout.css";
+import "./sidebar-nav.css";
+import "./sidebar-nav-overrides.css";
 
 export const metadata: Metadata = {
   title: "FIN Control",

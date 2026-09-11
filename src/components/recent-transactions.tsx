@@ -46,13 +46,13 @@ export async function RecentTransactions({ selectedAccount, limit = 20 }: { sele
     {transactions.length ? <ul className="recent-list">{transactions.map(item => {
       const label = labels[item.type] ?? item.type.replaceAll("_", " ");
       const pending = item.status === "PENDING_REVIEW";
-      const direction = item.type === "INCOME" ? "income" : item.type === "EXPENSE" ? "expense" : "neutral";
+      const direction = item.type === "INCOME" ? "income" : ["EXPENSE", "ACCRUED_EXPENSE"].includes(item.type) ? "expense" : "neutral";
       const visual = transactionVisuals[item.type] ?? { symbol: "•", tone: "neutral" };
       const account = item.destinationName ? `${item.accountName ?? "No account"} → ${item.destinationName}` : item.accountName ?? (item.type === "ACCRUED_EXPENSE" ? "Unpaid bill" : "No account selected");
       return <li className="recent-row" key={item.id}>
         <span className={`recent-icon ${visual.tone}`} aria-hidden="true">{visual.symbol}</span>
         <div className="recent-detail"><strong>{item.description || item.counterparty || label}</strong><span>{label} · {item.scope === "BUSINESS" ? "Business" : "Personal"}{item.categoryName ? ` · ${item.categoryName}` : ""}</span><small>{account}</small></div>
-        <div className="recent-value"><strong className={direction}>{item.type === "INCOME" ? "+ " : item.type === "EXPENSE" ? "− " : ""}{money.format(Number(item.amount))}</strong><time dateTime={item.transactionDate.slice(0,10)}>{date.format(new Date(`${item.transactionDate.slice(0,10)}T00:00:00Z`))}</time>{pending ? <Link className="recent-pending" href={`/review/${item.id}`}>Needs review</Link> : <span className="recent-status">{item.status === "POSTED" ? "Confirmed" : item.status.replaceAll("_", " ").toLowerCase()}</span>}{item.type==="ACCRUED_EXPENSE"&&item.status==="POSTED"&&<Link className="recent-pending" href={`/bills?bill=${item.id}#payment`}>{Number(item.outstanding)>0?"Pay bill":"View payments"}</Link>}</div>
+        <div className="recent-value"><strong className={direction}>{money.format(Math.abs(Number(item.amount)))}</strong><time dateTime={item.transactionDate.slice(0,10)}>{date.format(new Date(`${item.transactionDate.slice(0,10)}T00:00:00Z`))}</time>{pending ? <Link className="recent-pending" href={`/review/${item.id}`}>Needs review</Link> : <span className="recent-status">{item.status === "POSTED" ? "Confirmed" : item.status.replaceAll("_", " ").toLowerCase()}</span>}{item.type==="ACCRUED_EXPENSE"&&item.status==="POSTED"&&<Link className="recent-pending" href={`/bills?bill=${item.id}#payment`}>{Number(item.outstanding)>0?"Pay bill":"View payments"}</Link>}</div>
       </li>;
     })}</ul> : <div className="empty"><p>{selectedAccount ? `No transactions recorded for ${selectedAccount.name} yet.` : "No transactions yet. Add your first record to see your recent activity."}</p><Link className="button primary" href="/transactions/new">Add transaction</Link></div>}
     {hasMore && <div className="recent-more"><Link className="button" href={`/?${moreParams.toString()}#recent-transactions`}>Show 20 more</Link><span>Showing {transactions.length} transactions</span></div>}

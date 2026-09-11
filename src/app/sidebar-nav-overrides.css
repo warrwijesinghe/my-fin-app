@@ -1,0 +1,2 @@
+.app-sidebar,.sidebar-toggle{display:none}
+@media(min-width:641px){.app-sidebar{display:flex}.sidebar-toggle{display:block}.app-sidebar details[open] summary .sidebar-caret{transform:rotate(180deg)}body:has(.app-sidebar.is-collapsed) main{width:min(1160px,calc(100% - 104px));margin-left:max(88px,calc((100vw - 1232px)/2 + 72px));margin-right:auto}}
