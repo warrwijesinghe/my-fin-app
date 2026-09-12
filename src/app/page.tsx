@@ -8,29 +8,51 @@ import { DashboardLiabilities } from "@/components/dashboard-liabilities";
 import { lkr, signedLkr } from "@/lib/format";
 import { requireSession } from "@/lib/auth";
 import { accountBalanceClass } from "@/lib/balance";
+import { rows } from "@/lib/db";
+import { RowDataPacket } from "mysql2";
+import { getDashboardTrends } from "@/lib/dashboard-charts";
+import { MiniDonut, Sparkline, TrendArrow } from "@/components/dashboard-mini-chart";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string; captured?: string; captureError?: string }> }) {
   const viewer=await requireSession();
-  const [data,suppliers] = await Promise.all([getDashboardData(),getLiabilitySuppliers()]);
-  const availableAccounts = data.accounts.filter((account) => account.includeInAvailable && ["CASH", "BANK", "SAVINGS"].includes(account.type));
+  const data = await getDashboardData();
+  const [suppliers,goalSettings,trends] = await Promise.all([getLiabilitySuppliers(),rows<RowDataPacket & {value:string}>("SELECT value FROM AppSetting WHERE `key`='analyticsGoals'"),getDashboardTrends(data.accounts, data.outstandingReceivables, data.outstandingAccruals)]);
+  const availableAccounts = data.accounts.filter((account) => ["CASH", "BANK", "SAVINGS"].includes(account.type));
   const { account: accountId, recent, captured, captureError } = await searchParams;
   const requestedLimit = Number.parseInt(recent ?? "20", 10);
   const recentLimit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(20, requestedLimit)) : 20;
   const selectedAccount = data.accounts.find(account => account.id === accountId);
   const liabilities = data.accounts.filter((account) => ["CREDIT_CARD", "LOAN"].includes(account.type));
+  const cash = data.accounts.filter(account => account.type === "CASH").reduce((total, account) => total + account.balance, 0);
+  const bankCash = data.accounts.filter(account => account.type === "BANK").reduce((total, account) => total + account.balance, 0);
+  const cashAndBank = cash + bankCash;
+  const loans = data.accounts.filter(account => account.type === "LOAN").reduce((total, account) => total + Math.max(account.balance, 0), 0);
+  const creditCards = data.accounts.filter(account => account.type === "CREDIT_CARD").reduce((total, account) => total + Math.max(account.balance, 0), 0);
+  const creditCardSpendBalance = data.accounts.filter(account => account.type === "CREDIT_CARD").reduce((total, account) => total + Math.max(0, (account.creditLimit ?? 0) - Math.max(account.balance, 0)), 0);
+  const availableToSpend = cashAndBank + creditCardSpendBalance;
+  let targetAmount = 30000000;
+  try { const saved = JSON.parse(goalSettings[0]?.value ?? "null"); if (Number.isFinite(saved?.target) && saved.target > 0) targetAmount = saved.target; } catch { /* Use the standard target until one is saved in Analytics. */ }
+  const negativeProgressRange = 2000000;
+  const progressPercent = (position: number) => position < 0 ? position / negativeProgressRange * 100 : position / targetAmount * 100;
+  const targetProgress = progressPercent(data.overallPosition);
+  const targetGap = targetAmount - data.overallPosition;
+  const targetTrend = trends.map(point => ({ label: point.month, value: progressPercent(point.position) }));
+  const trendPoints = (key: keyof typeof trends[number]) => trends.map(point => ({ label: point.month, value: Number(point[key]) }));
 
   return (
     <><Nav /><main>
       <div className="page-heading"><div><p className="eyebrow">{viewer==="WIFE"?"JAD Buddhika · Sudu Manike":"Ayya"} · Private financial control</p><h1>Your money, clearly visible</h1><p className="muted">Confirmed records only. Pending items never change balances.</p></div><QuickCapture /></div>
       {captured && <p role="status">Saved to Review. Account balances are unchanged. <Link href="/review">Complete entry</Link></p>}
       {captureError && <p role="alert">Enter a positive amount with at most two decimal places and a description.</p>}
-      <section className="metric-grid">
-        <article className={`metric ${data.overallPosition >= 0 ? "positive" : "negative"}`}><p>Overall financial position</p><strong>{signedLkr(data.overallPosition)}</strong><small>Cash assets + {lkr(data.outstandingReceivables)} receivable, less debts and unpaid bills</small></article>
-        <article className={`metric ${data.availableCash >= 0 ? "positive" : "negative"}`}><p>Available cash now</p><strong>{lkr(data.availableCash)}</strong><small>Included cash, bank and savings; card debt reduces it</small></article>
-        <article className="metric negative"><p>Total liabilities</p><strong>{lkr(data.debt + data.outstandingAccruals)}</strong><small>{lkr(data.debt)} debt · {lkr(data.outstandingAccruals)} owed · <Link href="/bills">Pay bills</Link></small></article>
-        <article className={`metric ${data.netMovement >= 0 ? "positive" : "negative"}`}><p>This month’s net movement</p><strong>{signedLkr(data.netMovement)}</strong><small>{lkr(data.income)} income · {lkr(data.expenses)} expenses</small></article>
+      <section className="metric-grid dashboard-metric-grid">
+        <article className={`metric ${data.overallPosition >= 0 ? "positive" : "negative"}`}><p>Overall financial position</p><div className="metric-value-chart"><strong>{signedLkr(data.overallPosition)}</strong><TrendArrow points={trendPoints("position")}/><Sparkline label="Overall financial position trend" points={trendPoints("position")} tone={data.overallPosition >= 0 ? "green" : "red"}/></div><small>Cash assets + {lkr(data.outstandingReceivables)} receivable, less debts and unpaid bills</small></article>
+        <article className={`metric ${cashAndBank >= 0 ? "positive" : "negative"}`}><p>Cash & bank total</p><div className="metric-value-chart"><strong>{lkr(cashAndBank)}</strong><TrendArrow points={trendPoints("cashAndBank")}/><Sparkline label="Cash and bank trend" points={trendPoints("cashAndBank")} /></div><div className="metric-subvalues"><span>Cash <b>{lkr(cash)}</b></span><span>Bank <b>{lkr(bankCash)}</b></span></div></article>
+        <article className="metric positive"><p>Available to spend</p><div className="metric-value-chart"><strong>{lkr(availableToSpend)}</strong><TrendArrow points={trendPoints("availableToSpend")}/><MiniDonut label="Available to spend composition" slices={[{ label: "Cash and bank", value: cashAndBank, color: "green" }, { label: "Card spend balance", value: creditCardSpendBalance, color: "blue" }]}/></div><div className="metric-subvalues"><span>Cash & bank <b>{lkr(cashAndBank)}</b></span><span>Card spend balance <b>{lkr(creditCardSpendBalance)}</b></span></div></article>
+        <article className="metric negative"><p>Total liabilities</p><div className="metric-value-chart"><strong>{lkr(loans + creditCards + data.outstandingAccruals)}</strong><TrendArrow points={trendPoints("liabilities")} inverse/><Sparkline label="Total liabilities trend" points={trendPoints("liabilities")} tone="red"/></div><div className="metric-subvalues"><span>Long-term loans <b>{lkr(loans)}</b></span><span>Credit cards <b>{lkr(creditCards)}</b></span><span>Creditors <b>{lkr(data.outstandingAccruals)}</b></span></div></article>
+        <article className={`metric ${data.netMovement >= 0 ? "positive" : "negative"}`}><p>This month’s net movement</p><div className="metric-value-chart"><strong>{signedLkr(data.netMovement)}</strong><TrendArrow points={trendPoints("netMovement")}/><Sparkline label="Monthly net movement trend" points={trendPoints("netMovement")} tone={data.netMovement >= 0 ? "green" : "red"}/></div><div className="metric-subvalues"><span>Income <b>{lkr(data.income)}</b></span><span>Expenses <b>{lkr(data.expenses)}</b></span></div></article>
+        <article className={`metric ${targetProgress >= 0 ? "positive" : "negative"}`}><p>Target amount progress</p><div className="metric-value-chart"><strong>{targetProgress.toFixed(1)}%</strong><TrendArrow points={targetTrend}/><Sparkline label="Target amount progress trend" points={targetTrend} tone={targetProgress >= 0 ? "green" : "red"}/></div><div className="metric-subvalues"><span>Negative range <b>-2M to zero</b></span><span>Positive target <b>{lkr(targetAmount)}</b></span><span>{targetGap > 0 ? "Remaining" : "Above target"} <b>{lkr(Math.abs(targetGap))}</b></span></div></article>
       </section>
       <div className="dashboard-overview">
       <section className="panel dashboard-cash"><div className="section-heading"><div><p className="eyebrow">Live position</p><h2>Cash and cash equivalents</h2></div><Link href="/master-data?section=ACCOUNT">Manage accounts</Link></div>
