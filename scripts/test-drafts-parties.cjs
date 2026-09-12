@@ -3,6 +3,7 @@ const fs=require('node:fs');
 const ts=require('typescript');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
+assert.match(fs.readFileSync('src/components/quick-entry.tsx','utf8'), /!supportsClassification&&<input name="scope" type="hidden" value=\{scope\}/, 'moving-entry forms must submit scope');
 function load(file,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,URLSearchParams,crypto,require:n=>Object.hasOwn(mocks,n)?mocks[n]:require(n)});return exports}
 const expenses=load('src/lib/expenses.ts'),analytics=load('src/lib/analytics.ts'),types=load('src/lib/types.ts');
 const draftId='123e4567-e89b-42d3-a456-426614174000';

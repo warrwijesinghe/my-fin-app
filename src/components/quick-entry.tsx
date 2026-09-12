@@ -106,6 +106,7 @@ function EntryForm({ type, accounts, projects, tasks, categories, today, items, 
   const supportsClassification = type === "INCOME" || type === "EXPENSE" || type === "ACCRUED_EXPENSE";
   return <form className="form-grid quick-entry-form" action="/api/transactions" method="post">
       <input name="type" type="hidden" value={type} />
+      {!supportsClassification&&<input name="scope" type="hidden" value={scope} />}
       {draft&&<input type="hidden" name="draftId" value={draft.id}/>} 
       <div className="amount-date"><label>Amount<input name="amount" defaultValue={draft?.amount} readOnly={!!draft} type="number" min="0.01" step="0.01" required /></label><label>Date<input name="transactionDate" type="date" defaultValue={draft?.transactionDate ?? today} required /></label></div>
       {supportsClassification&&<label>Payment<select name="paymentTiming" value={paymentTiming} onChange={e=>setPaymentTiming(e.target.value)} disabled={type==="ACCRUED_EXPENSE"}><option value="PAID">Paid / received now</option><option value="CREDIT">On credit — settle later</option></select></label>}
