@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { requireSession } from "@/lib/auth";
@@ -24,5 +25,6 @@ export default async function TransactionEditPage({params,searchParams}:{params:
       {lines.length>0&&<div className="span-2"><h2>Item amounts</h2><p className="muted">Item amounts must add up to the transaction amount.</p>{lines.map(line=><label key={line.id}>{line.name||"Item"}{line.quantity!=null?` · ${line.quantity} ${line.unit}`:""}<input name={`line:${line.id}`} type="number" min="0.01" max="999999999" step="0.01" defaultValue={line.amount} required/></label>)}</div>}
       <button className="button primary" type="submit">Save changes</button>
     </form></section>
+    <section className="panel"><h2>Delete transaction</h2><p>Remove an entry recorded by mistake and reverse its balances.</p><Link className="button danger" href={`/transactions/${id}/delete`}>Delete transaction</Link></section>
   </main></>;
 }

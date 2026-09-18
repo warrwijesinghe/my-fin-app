@@ -8,7 +8,7 @@ import { TransactionTable } from "@/components/transaction-table";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewTransactionPage({searchParams}:{searchParams:Promise<{household?:string;error?:string;scope?:string;from?:string;to?:string;updated?:string}>}) {
+export default async function NewTransactionPage({searchParams}:{searchParams:Promise<{household?:string;error?:string;scope?:string;from?:string;to?:string;updated?:string;deleted?:string}>}) {
   const viewer=await requireSession();
   const params=await searchParams;
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Colombo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
@@ -23,6 +23,7 @@ export default async function NewTransactionPage({searchParams}:{searchParams:Pr
   ]);
   return <><Nav/><main>
     {params.error&&<p className="analytics-alert" role="alert">Unable to save. Check the account, category, item amounts and units. Transfers must use your own money. Inactive items must be reactivated in Item Master.</p>}
+    {params.deleted&&<p role="status">Transaction deleted. Balances and reports have been updated.</p>}
     {params.updated&&<p role="status">Transaction updated.</p>}
     <QuickEntry initialScope={params.scope==="BUSINESS"?"BUSINESS":"PERSONAL"} parties={parties} items={items} initialOwner={viewer} initialHousehold={params.household==="1"} accounts={accounts.map(a=>({...a,name:a.isSharedCash?cashName(a.owner,viewer):a.name}))} projects={projects} tasks={tasks} categories={categories} today={dateValue(new Date())}/>
     <TransactionTable from={from} to={to} rows={transactions}/>

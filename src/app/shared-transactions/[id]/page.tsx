@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { requireSession } from "@/lib/auth";
@@ -13,6 +14,6 @@ export default async function SharedTransactionPage({params,searchParams}:{param
     {query.error&&<p role="alert">Unable to save. The entry may have changed; reload before retrying. Check item totals, dates and any bill payments. A bill amount cannot be less than payments already made.</p>}
     <section className="panel"><form className="form-grid" action={`/api/shared-transactions/${id}`} method="post"><input name="revision" type="hidden" value={entry.revision}/><label>Amount (LKR)<input name="amount" type="number" min="0.01" max="999999999" step="0.01" defaultValue={entry.amount} required/></label><label>Date<input name="transactionDate" type="date" defaultValue={String(entry.transactionDate).slice(0,10)} required/></label><label>Who spent / moved the cash?<select name="spentBy" defaultValue={entry.spentBy}><option value="ME">Ayya</option><option value="WIFE">Sudu Manike</option></select></label><label>Description<input name="description" maxLength={300} defaultValue={entry.description||""}/></label>
       {lines.length>0&&<div className="span-2"><h2>Item amounts</h2><p>Item amounts must add up to the transaction amount.</p>{lines.map(l=><label key={l.id}>{l.name||"Item"}{l.quantity!=null?` · ${l.quantity} ${l.unit}`:""}<input name={`line:${l.id}`} type="number" min="0.01" max="999999999" step="0.01" defaultValue={l.amount} required/></label>)}</div>}
-      <button className="button primary" name="intent" value="update">Save changes</button><button className="button danger" name="intent" value="delete" formNoValidate>Delete entry</button><p className="span-2 muted">Changes update the original entry and its balances for both logins. Deleting a bill also reverses its linked payments. Deleted entries remain in the audit history.</p>
+      <button className="button primary" name="intent" value="update">Save changes</button><Link className="button danger" href={`/transactions/${id}/delete`}>Delete entry</Link><p className="span-2 muted">Changes update the original entry and its balances for both logins. Deleting a bill also reverses its linked payments. Deleted entries remain in the audit history.</p>
     </form></section></main></>;
 }

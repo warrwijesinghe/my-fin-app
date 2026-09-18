@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "db:migrate": "node --env-file=.env scripts/migrate.mjs",
-    "test": "node scripts/test-drafts-parties.cjs && node scripts/test-household.cjs && node scripts/test-tax-reports.cjs && node scripts/test-analytics.cjs && node scripts/test-account-center.cjs && node scripts/test-redirects.cjs && node scripts/test-business.cjs && node scripts/test-family.cjs",
+    "test": "node scripts/test-drafts-parties.cjs && node scripts/test-household.cjs && node scripts/test-tax-reports.cjs && node scripts/test-analytics.cjs && node scripts/test-account-center.cjs && node scripts/test-redirects.cjs && node scripts/test-business.cjs && node scripts/test-family.cjs && node scripts/test-transaction-delete.cjs",
     "test:family-db": "node scripts/test-family-db.cjs"
   },
   "dependencies": {
