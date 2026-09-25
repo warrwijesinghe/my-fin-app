@@ -3,7 +3,7 @@ import { rows } from "@/lib/db";
 import { AccountBalance, MoneyScope } from "@/lib/types";
 
 type DbAccount = RowDataPacket & Omit<AccountBalance, "balance"> & { balance: number | string };
-const assetTypes = ["CASH", "BANK", "SAVINGS"], debtTypes = ["CREDIT_CARD", "LOAN"];
+const assetTypes = ["CASH", "BANK", "SAVINGS", "FIXED_ASSET"], debtTypes = ["CREDIT_CARD", "LOAN"];
 export async function getAccountBalances() { const items = await rows<DbAccount>("SELECT a.*, COALESCE(SUM(e.amount),0) balance FROM `Account` a LEFT JOIN `AccountEntry` e ON e.accountId=a.id WHERE a.isActive=1 GROUP BY a.id ORDER BY a.scope,a.name"); return items.map((a) => ({ ...a, balance:Number(a.balance), creditLimit:a.creditLimit == null ? null : Number(a.creditLimit), includeInAvailable:Boolean(a.includeInAvailable) })) as AccountBalance[]; }
 export async function getDashboardData(scope?: MoneyScope) {
   const accounts=await getAccountBalances(), filtered=scope?accounts.filter(a=>a.scope===scope):accounts, where=scope?" AND scope=?":"", values=scope?[scope]:[], start=new Date(); start.setDate(1);

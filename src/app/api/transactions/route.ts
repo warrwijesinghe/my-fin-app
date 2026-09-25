@@ -79,6 +79,8 @@ export async function POST(request: Request) {
       if(account && account.owner!==viewer && !(expense && spentBy.data===account.owner))throw new InputError("account");
       if(dest && (dest.owner!==viewer || account?.owner!==viewer))throw new InputError("accounts");
       if(account?.isSharedCash && d.type==="INCOME")throw new InputError("Use-transfer-to-top-up");
+      if (account?.type === "FIXED_ASSET" && !moving) throw new InputError("account");
+      if (dest?.type === "FIXED_ASSET" && !moving) throw new InputError("account");
       if(account && account.owner!==viewer && d.projectId)throw new InputError("shared-metadata");
       if (d.type === "DEBT_PAYMENT" && !["CREDIT_CARD","LOAN"].includes(dest?.type)) throw new InputError("accounts");
       const categoryIds = [...new Set(lines.length ? lines.map(l=>l.categoryId) : d.categoryId ? [d.categoryId] : [])];

@@ -40,6 +40,9 @@ const totals = portfolioTotals([account('BANK', 1000), account('SAVINGS', 200, f
 assert.equal(totals.assets, 1200);
 assert.equal(totals.available, 700, 'Included credit-card debt reduces available cash');
 assert.equal(totals.net, 500);
+const assetTotals = portfolioTotals([account('BANK', 1000), account('FIXED_ASSET', 500000, true, false)]);
+assert.equal(assetTotals.assets, 501000, 'Fixed assets are part of the recorded asset position');
+assert.equal(assetTotals.available, 1000, 'Fixed assets are never available cash');
 const overpaidCard = portfolioTotals([account('BANK', 1000), account('CREDIT_CARD', -125)]);
 assert.equal(overpaidCard.available, 1125, 'An overpaid card credit increases available cash');
 assert.equal(isDebtAccount('CREDIT_CARD'), true);

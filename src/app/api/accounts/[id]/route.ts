@@ -26,6 +26,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const data = updateSchema.safeParse({ name: form.get("name"), holder: form.get("holder") || undefined, creditLimit: form.get("creditLimit") || undefined, includeInAvailable: form.get("includeInAvailable") === "on" });
   if (!data.success) return redirect("error");
-  await execute("UPDATE `Account` SET name=?,holder=?,creditLimit=?,includeInAvailable=?,updatedAt=NOW(3) WHERE id=?", [data.data.name, data.data.holder || null, account.type === "CREDIT_CARD" ? data.data.creditLimit ?? null : null, data.data.includeInAvailable, id.data]);
+  await execute("UPDATE `Account` SET name=?,holder=?,creditLimit=?,includeInAvailable=?,updatedAt=NOW(3) WHERE id=?", [data.data.name, data.data.holder || null, account.type === "CREDIT_CARD" ? data.data.creditLimit ?? null : null, account.type === "FIXED_ASSET" ? false : data.data.includeInAvailable, id.data]);
   return redirect("updated",returnTo);
 }

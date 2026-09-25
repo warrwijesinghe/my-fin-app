@@ -11,6 +11,7 @@ enum AccountType {
   CASH
   BANK
   SAVINGS
+  FIXED_ASSET
   CREDIT_CARD
   LOAN
 }

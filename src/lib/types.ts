@@ -1,4 +1,4 @@
-export const ACCOUNT_TYPES = ["CASH", "BANK", "SAVINGS", "CREDIT_CARD", "LOAN"] as const;
+export const ACCOUNT_TYPES = ["CASH", "BANK", "SAVINGS", "FIXED_ASSET", "CREDIT_CARD", "LOAN"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const SCOPES = ["PERSONAL", "BUSINESS"] as const;
 export type MoneyScope = (typeof SCOPES)[number];

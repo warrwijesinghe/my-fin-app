@@ -20,14 +20,15 @@ function Icon({kind}:{kind:string}) { return <svg width="20" height="20" viewBox
 
 function AccountForm({account,onCancel}:{account?:Account;onCancel:()=>void}) {
  const [pending,setPending]=useState(false),[accountType,setAccountType]=useState("BANK");
+ const fixedAsset=(account?.type??accountType)==="FIXED_ASSET";
  return <form action={account?`/api/accounts/${account.id}`:"/api/accounts"} method="post" className="md-form" onSubmit={()=>setPending(true)}>
  {account&&<input type="hidden" name="intent" value="update"/>}<h3>{account?"Edit account":"New account"}</h3>
  <label>Name<input name="name" defaultValue={account?.name} maxLength={120} required/></label>
- {!account&&<><label>Type<select name="type" value={accountType} onChange={event=>setAccountType(event.target.value)}>{ACCOUNT_TYPES.map(type=><option key={type}>{type}</option>)}</select></label><label>Scope<select name="scope"><option value="PERSONAL">Personal</option><option value="BUSINESS">Business</option></select></label></>}
+ {!account&&<><label>Type<select name="type" value={accountType} onChange={event=>setAccountType(event.target.value)}>{ACCOUNT_TYPES.map(type=><option key={type} value={type}>{type.replaceAll("_"," ")}</option>)}</select></label><label>Scope<select name="scope"><option value="PERSONAL">Personal</option><option value="BUSINESS">Business</option></select></label></>}
  <label>Holder<input name="holder" defaultValue={account?.holder||""} maxLength={80}/></label>
  <label>Credit limit<input name="creditLimit" defaultValue={account?.creditLimit??""} min="0" step="0.01" type="number"/></label>
- {!account&&<><label>Opening balance<input name="openingBalance" defaultValue="0" min={accountType==="CREDIT_CARD"?"-999999999":"0"} step="0.01" type="number"/><small>{accountType==="CREDIT_CARD"?"Use a negative balance for an overpaid card credit.":"Opening balances cannot be negative for this account type."}</small></label><label>Opening date<input name="openingDate" type="date"/></label></>}
- <label className="md-active"><input name="includeInAvailable" type="checkbox" defaultChecked={account?Boolean(account.includeInAvailable):true}/>Include in available cash</label>
+ {!account&&<><label>Opening balance<input name="openingBalance" defaultValue="0" min={accountType==="CREDIT_CARD"?"-999999999":"0"} step="0.01" type="number"/><small>{accountType==="CREDIT_CARD"?"Use a negative balance for an overpaid card credit.":fixedAsset?"For an asset you already own, enter its recorded cost or current value.":"Opening balances cannot be negative for this account type."}</small></label><label>Opening date<input name="openingDate" type="date"/></label></>}
+ <label className="md-active"><input name="includeInAvailable" type="checkbox" disabled={fixedAsset} defaultChecked={fixedAsset?false:account?Boolean(account.includeInAvailable):true}/>Include in available cash{fixedAsset&&<small>Fixed assets are not spendable cash.</small>}</label>
  <div className="md-form-footer"><button type="button" className="button" onClick={onCancel}>Cancel</button><button className="button primary" disabled={pending}>Save account</button></div></form>;
 }
 

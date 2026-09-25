@@ -9,7 +9,7 @@ const expenses=load('src/lib/expenses.ts'),analytics=load('src/lib/analytics.ts'
 const draftId='123e4567-e89b-42d3-a456-426614174000';
 const supplier={id:'supplier',name:'Food City',kind:'SUPPLIER',isCash:false};
 const customer={id:'customer',name:'Customer',kind:'CUSTOMER',isCash:false};
-const accounts={cash:{id:'cash',type:'BANK',owner:'ME'},card:{id:'card',type:'CREDIT_CARD',owner:'ME'},wife:{id:'wife',type:'CASH',owner:'WIFE'}};
+const accounts={cash:{id:'cash',type:'BANK',owner:'ME'},card:{id:'card',type:'CREDIT_CARD',owner:'ME'},asset:{id:'asset',type:'FIXED_ASSET',owner:'ME'},wife:{id:'wife',type:'CASH',owner:'WIFE'}};
 const line=(name,amount,quantity='',unit='')=>({name,amount,quantity,unit,categoryId:'food'});
 const request=(form)=>new Request('http://localhost/api/test',{method:'POST',body:new URLSearchParams(form)});
 function harness({draft=null,party=supplier,invoice=null,outstanding=0,denied=null,viewer="ME"}={}){
@@ -90,6 +90,13 @@ const full={draftId,type:'EXPENSE',expenseKind:'BUSINESS',transactionDate:'2026-
   const transfer=harness();
   await transfer.route('src/app/api/transactions/route.ts')(request({type:'TRANSFER',amount:100,transactionDate:'2026-09-07',scope:'PERSONAL',accountId:'cash',destinationAccountId:'card'}));
   assert.deepEqual(transfer.state.writes.filter(w=>w.sql.startsWith('INSERT INTO AccountEntry')).map(w=>w.v[3]),[-100,-100]);
+  const assetPurchase=harness();
+  await assetPurchase.route('src/app/api/transactions/route.ts')(request({type:'TRANSFER',amount:100,transactionDate:'2026-09-07',scope:'PERSONAL',accountId:'cash',destinationAccountId:'asset'}));
+  assert.deepEqual(assetPurchase.state.writes.filter(w=>w.sql.startsWith('INSERT INTO AccountEntry')).map(w=>w.v[3]),[-100,100], 'An asset purchase moves value from cash into the asset ledger');
+  const invalidAssetExpense=harness();
+  const {draftId:ignoredDraftId,...assetExpenseFields}=full;
+  assert.ok((await invalidAssetExpense.route('src/app/api/transactions/route.ts')(request({...assetExpenseFields,accountId:'asset'}))).includes('error=account'));
+  assert.equal(invalidAssetExpense.state.writes.length,0, 'Fixed assets cannot be used to post an ordinary expense');
 
   const invoice={id:draftId,type:'ACCRUED_EXPENSE',amount:12000,partyId:'supplier',transactionDate:'2026-09-07',owner:'ME',accrualId:'accrual',scope:'BUSINESS',taxScope:'BUSINESS',counterparty:'Food City',description:'Bill',household:false,projectId:null,taskId:null};
   const settlement=harness({invoice,outstanding:-12000}),pay=settlement.route('src/app/api/parties/settle/route.ts');
