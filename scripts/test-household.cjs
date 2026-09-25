@@ -51,7 +51,7 @@ async function create(formPatch={},dbPatch={}) {
   assert.equal((await create({lines:'not json'})).statements.length,0);
   assert.equal((await create({transactionDate:'2026-02-30'})).statements.length,0);
   assert.equal((await create({lines:JSON.stringify([{name:'Rice',categoryId:'food',amount:1,quantity:2,unit:''}])})).statements.length,0);
-  const finance=load('src/lib/finance.ts',{'@/lib/db':{rows:async(sql)=>{if(sql.startsWith('SELECT a.*'))return [{id:'me',type:'CASH',owner:'ME',balance:100,includeInAvailable:true}];return []}}});
+  const finance=load('src/lib/finance.ts',{'@/lib/auth':{currentOwner:async()=> 'ME'},'@/lib/db':{rows:async(sql)=>{if(sql.startsWith('SELECT a.*'))return [{id:'me',type:'CASH',owner:'ME',balance:100,includeInAvailable:true}];return []}}});
   const dashboard=await finance.getDashboardData();assert.equal(dashboard.availableCash,100);assert.equal(dashboard.assets,100);
   const apiStatements=[];
   const execute=async(sql,values)=>{assert.equal((sql.match(/\?/g)||[]).length,values.length);apiStatements.push({sql,values});return [[{household:false}]]};

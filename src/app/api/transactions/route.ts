@@ -9,7 +9,7 @@ import { validDate } from "@/lib/analytics";
 import { linesSchema, moneyCents, normalizeItem } from "@/lib/expenses";
 
 const schema = z.object({
-  draftId:z.string().uuid().optional(), partyId:z.string().max(191).optional(), paymentTiming:z.enum(["PAID","CREDIT"]).optional(), expenseKind:z.enum(["HOUSEHOLD","BUSINESS"]).optional(),
+  draftId:z.string().uuid().optional(), partyId:z.string().max(191).optional(), paymentTiming:z.enum(["PAID","CREDIT"]).optional(), expenseKind:z.enum(["HOUSEHOLD","PERSONAL","BUSINESS"]).optional(),
   type: z.enum(["INCOME","EXPENSE","TRANSFER","ACCRUED_EXPENSE","DEBT_PAYMENT"]),
   amount: z.coerce.number().positive().max(999999999).optional(), transactionDate: z.string().refine(validDate),
   scope: z.enum(SCOPES), taxScope: z.enum(SCOPES).optional(), owner: z.enum(["ME","WIFE"]).default("ME"),
@@ -41,9 +41,13 @@ export async function POST(request: Request) {
   if (household) {
     d.scope="PERSONAL";
     d.projectId=undefined;
-  } else if (expense) {
+  } else if (d.expenseKind === "BUSINESS") {
     d.scope="BUSINESS";
     d.taxScope="BUSINESS";
+  } else if (expense) {
+    d.scope="PERSONAL";
+    d.projectId=undefined;
+    d.taxScope=d.taxScope??"PERSONAL";
   }
   if (lines.length && !expense) return fail("invalid");
   let amount = lines.length ? lines.reduce((sum,line) => sum + moneyCents(line.amount),0)/100 : d.amount;

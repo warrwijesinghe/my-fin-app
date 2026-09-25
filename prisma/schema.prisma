@@ -30,6 +30,10 @@ enum TransactionType {
   OPENING_BALANCE
   ADJUSTMENT
   PARTY_PAYMENT
+  FAMILY_LOAN_ADVANCE
+  FAMILY_LOAN_REPAYMENT
+  RECEIVABLE_ADVANCE
+  RECEIVABLE_COLLECTION
 }
 
 enum TransactionStatus {
@@ -125,6 +129,10 @@ model Category {
 }
 
 model FinancialTransaction {
+  receivableId String?
+  receivable Receivable? @relation(fields: [receivableId], references: [id])
+  familyLoanId String?
+  familyLoan FamilyLoan? @relation(fields: [familyLoanId], references: [id])
   spentBy Owner @default(ME)
   recordedBy Owner @default(ME)
   revision Int @default(0)
@@ -169,6 +177,39 @@ model FinancialTransaction {
 
   @@index([transactionDate, status])
   @@index([scope, transactionDate])
+  @@index([familyLoanId])
+  @@index([receivableId])
+}
+
+model FamilyLoan {
+  id String @id @default(uuid()) @db.VarChar(191)
+  lender Owner
+  borrower Owner
+  amount Decimal @db.Decimal(15,2)
+  repaidAmount Decimal @default(0) @db.Decimal(15,2)
+  loanDate DateTime @db.Date
+  description String? @db.VarChar(300)
+  status ObligationStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  transactions FinancialTransaction[]
+  @@index([lender, status])
+  @@index([borrower, status])
+}
+
+model Receivable {
+  id String @id @default(uuid()) @db.VarChar(191)
+  owner Owner @default(ME)
+  debtor String @db.VarChar(140)
+  amount Decimal @db.Decimal(15,2)
+  receivedAmount Decimal @default(0) @db.Decimal(15,2)
+  receivableDate DateTime @db.Date
+  description String? @db.VarChar(300)
+  status ObligationStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  transactions FinancialTransaction[]
+  @@index([owner, status])
 }
 
 model AccountEntry {

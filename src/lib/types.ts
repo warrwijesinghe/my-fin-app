@@ -3,7 +3,7 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const SCOPES = ["PERSONAL", "BUSINESS"] as const;
 export type MoneyScope = (typeof SCOPES)[number];
 export type Owner = "ME" | "WIFE";
-export type TransactionType = "INCOME" | "EXPENSE" | "TRANSFER" | "ACCRUED_EXPENSE" | "DEBT_PAYMENT" | "OPENING_BALANCE" | "ADJUSTMENT" | "PARTY_PAYMENT";
+export type TransactionType = "INCOME" | "EXPENSE" | "TRANSFER" | "ACCRUED_EXPENSE" | "DEBT_PAYMENT" | "OPENING_BALANCE" | "ADJUSTMENT" | "PARTY_PAYMENT" | "FAMILY_LOAN_ADVANCE" | "FAMILY_LOAN_REPAYMENT" | "RECEIVABLE_ADVANCE" | "RECEIVABLE_COLLECTION";
 export type TransactionStatus = "PENDING_REVIEW" | "POSTED" | "VOID";
 
 export type AccountBalance = {

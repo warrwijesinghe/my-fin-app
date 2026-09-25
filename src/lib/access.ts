@@ -14,12 +14,13 @@ export function scopeSelect(sql: string, owner: Owner, scope: ReadScope = "priva
   const own = `owner='${owner}'`;
   const cash = "SELECT id FROM Account WHERE isSharedCash=1";
   const sharedTx = `(accountId IN (${cash}) OR destinationAccountId IN (${cash}))`;
-  const tx = scope === "shared" ? `(${own} OR household=1 OR ${sharedTx})` : scope === "household" ? `(${own} OR household=1)` : scope === "cash" ? `(${own} OR ${sharedTx})` : own;
+  const familyLoan = "familyLoanId IS NOT NULL";
+  const tx = scope === "family" ? `(${own} OR ${familyLoan})` : scope === "shared" ? `(${own} OR household=1 OR ${sharedTx} OR ${familyLoan})` : scope === "household" ? `(${own} OR household=1)` : scope === "cash" ? `(${own} OR ${sharedTx} OR ${familyLoan})` : own;
   const txIds = `SELECT id FROM FinancialTransaction WHERE ${tx}`;
   const filters: Record<string,string> = {
     Account: scope === "family" ? "1=1" : scope !== "private" ? `(${own} OR isSharedCash=1)` : own,
     FinancialTransaction: tx, IncomeExpenseActivity: own, CreditOutstanding: own,
-    Project: own, Task: "1=1", Party: "1=1", Category: "1=1", FinancialGoal: own, AppSetting: own,
+    Project: own, Task: "1=1", Party: "1=1", Category: "1=1", FinancialGoal: own, FamilyLoan: `(lender='${owner}' OR borrower='${owner}')`, Receivable: own, AppSetting: own,
     Item: "1=1",
     ExpenseLine: `transactionId IN (${txIds})`,
     AccountEntry: `accountId IN (SELECT id FROM Account WHERE ${scope === "cash" ? `(${own} OR isSharedCash=1)` : own})`,

@@ -8,7 +8,7 @@ import { moneyCents } from "@/lib/expenses";
 
 const amount=z.coerce.number().positive().max(999999999).refine(value=>Math.abs(value*100-Math.round(value*100))<0.00001);
 const optionalId=z.preprocess(value=>value===""?undefined:value,z.string().uuid().optional());
-const schema=z.object({amount,transactionDate:z.string().refine(validDate),description:z.string().max(300),revision:z.coerce.number().int().nonnegative(),accountId:optionalId,projectId:optionalId,categoryId:optionalId,taskId:optionalId,expenseKind:z.enum(["HOUSEHOLD","BUSINESS"]).optional()});
+const schema=z.object({amount,transactionDate:z.string().refine(validDate),description:z.string().max(300),revision:z.coerce.number().int().nonnegative(),accountId:optionalId,projectId:optionalId,categoryId:optionalId,taskId:optionalId,expenseKind:z.enum(["HOUSEHOLD","PERSONAL","BUSINESS"]).optional()});
 class InputError extends Error {}
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}) {
@@ -39,8 +39,8 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     const projectId=parsed.data.projectId||null;
     if(projectId&&!await find("SELECT id FROM Project WHERE id=? AND isActive=1",[projectId]))throw new InputError("project");
     const household=expense&&parsed.data.expenseKind==="HOUSEHOLD";
-    const scope=expense?(household?"PERSONAL":"BUSINESS"):entry.scope;
-    const taxScope=expense&&!household?"BUSINESS":entry.taxScope;
+    const scope=expense?(parsed.data.expenseKind==="BUSINESS"?"BUSINESS":"PERSONAL"):entry.scope;
+    const taxScope=expense?(parsed.data.expenseKind==="BUSINESS"?"BUSINESS":"PERSONAL"):entry.taxScope;
     if(projectId&&scope!=="BUSINESS")throw new InputError("project");
     const lines=(await connection.execute<any[]>("SELECT id FROM ExpenseLine WHERE transactionId=? ORDER BY id FOR UPDATE",[id]))[0];
     let lineTotal=0;

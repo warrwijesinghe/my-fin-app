@@ -12,6 +12,8 @@ const modules:{label:string;href:string;icon:string}[] = [
   {label:"Analytics",href:"/analytics",icon:"◔"},
   {label:"Business",href:"/business",icon:"⌁"},
   {label:"Household",href:"/household",icon:"⌂"},
+  {label:"Family loans",href:"/family-loans",icon:"⇄"},
+  {label:"Receivables",href:"/receivables",icon:"↙"},
   {label:"Master Files",href:"/master-data",icon:"⚙"},
 ];
 
