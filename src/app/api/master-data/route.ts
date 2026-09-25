@@ -39,10 +39,11 @@ export async function POST(request: Request) {
     if (scope && !scope.success) return redirect("error", entity,returnTo);
     const value = scope ? scope.data : null;
     const kind=z.enum(["INCOME","EXPENSE"]).safeParse(form.get("kind")||"EXPENSE");
-    if(!kind.success || name.data.length>100) return redirect("error",entity,returnTo);
+    const householdExpenseClass=z.enum(["REGULAR","SPECIAL"]).safeParse(form.get("householdExpenseClass")||(name.data.toLowerCase().includes("speed draft")?"SPECIAL":"REGULAR"));
+    if(!kind.success || !householdExpenseClass.success || name.data.length>100) return redirect("error",entity,returnTo);
     if(intent==="update") { const [existing]=await rows<any>("SELECT kind FROM Category WHERE id=?",[id]); if(await masterRecordInUse("CATEGORY",id!) && existing?.kind!==kind.data)return redirect("error",entity,returnTo); }
-    if (intent === "create") await execute("INSERT INTO `Category` (owner,id,name,scope,kind,isActive) VALUES (?,?,?,?,?,?)", [viewer, crypto.randomUUID(), name.data, value, kind.data, active]);
-    else await execute("UPDATE `Category` SET name=?,scope=?,kind=?,isActive=? WHERE id=?", [name.data, value, kind.data, active, id]);
+    if (intent === "create") await execute("INSERT INTO `Category` (owner,id,name,scope,kind,householdExpenseClass,isActive) VALUES (?,?,?,?,?,?,?)", [viewer, crypto.randomUUID(), name.data, value, kind.data, householdExpenseClass.data, active]);
+    else await execute("UPDATE `Category` SET name=?,scope=?,kind=?,householdExpenseClass=?,isActive=? WHERE id=?", [name.data, value, kind.data, householdExpenseClass.data, active, id]);
   }
   if (entity === "TASK") {
     const scope = scopeSchema.safeParse(form.get("scope"));

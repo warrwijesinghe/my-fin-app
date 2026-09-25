@@ -11,7 +11,7 @@ export default async function MasterDataPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const [projects, categories, tasks, accounts] = await Promise.all([
     rows<any>("SELECT id,name,isActive FROM `Project` ORDER BY isActive DESC,name"),
-    rows<any>("SELECT id,name,scope,kind,isActive FROM `Category` ORDER BY isActive DESC,name"),
+    rows<any>("SELECT id,name,scope,kind,householdExpenseClass,isActive FROM `Category` ORDER BY isActive DESC,name"),
     rows<any>("SELECT id,name,scope,projectId,isActive FROM `Task` ORDER BY isActive DESC,name"),
     getAccountBalances(),
   ]);

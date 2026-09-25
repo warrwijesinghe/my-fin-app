@@ -38,7 +38,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     if(taskId&&!await find("SELECT id FROM Task WHERE id=? AND isActive=1",[taskId]))throw new InputError("task");
     const projectId=parsed.data.projectId||null;
     if(projectId&&!await find("SELECT id FROM Project WHERE id=? AND isActive=1",[projectId]))throw new InputError("project");
-    const household=expense&&parsed.data.expenseKind==="HOUSEHOLD";
+    const household=expense&&(parsed.data.expenseKind==="HOUSEHOLD"||parsed.data.expenseKind==="PERSONAL");
     const scope=expense?(parsed.data.expenseKind==="BUSINESS"?"BUSINESS":"PERSONAL"):entry.scope;
     const taxScope=expense?(parsed.data.expenseKind==="BUSINESS"?"BUSINESS":"PERSONAL"):entry.taxScope;
     if(projectId&&scope!=="BUSINESS")throw new InputError("project");

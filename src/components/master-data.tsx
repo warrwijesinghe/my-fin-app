@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ACCOUNT_TYPES } from "@/lib/types";
 import { accountBalanceClass } from "@/lib/balance";
 
-type Record = { id:string; name:string; isActive:number|boolean; scope?:"PERSONAL"|"BUSINESS"|null; projectId?:string|null; kind?:"INCOME"|"EXPENSE" };
+type Record = { id:string; name:string; isActive:number|boolean; scope?:"PERSONAL"|"BUSINESS"|null; projectId?:string|null; kind?:"INCOME"|"EXPENSE"; householdExpenseClass?:"REGULAR"|"SPECIAL" };
 type Account = Record & { owner?:"ME"|"WIFE"; type:string; holder?:string|null; creditLimit?:number|null; includeInAvailable:number|boolean; balance:number };
 type Section = "ACCOUNT"|"PROJECT"|"CATEGORY"|"TASK";
 const sections = [

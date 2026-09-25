@@ -64,6 +64,11 @@ enum CategoryKind {
   EXPENSE
 }
 
+enum HouseholdExpenseClass {
+  REGULAR
+  SPECIAL
+}
+
 model Account {
   isSharedCash Boolean @default(false)
   @@unique([owner, name])
@@ -116,6 +121,7 @@ model Task {
 model Category {
   owner Owner @default(ME)
   kind CategoryKind @default(EXPENSE)
+  householdExpenseClass HouseholdExpenseClass @default(REGULAR)
   items Item[]
   expenseLines ExpenseLine[]
   id          String        @id @default(cuid())

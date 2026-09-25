@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if(!spentBy.success)return fail("invalid");
   const expense = ["EXPENSE","ACCRUED_EXPENSE"].includes(d.type);
   if (expense && !d.expenseKind) return fail("expense-kind");
-  const household = expense && d.expenseKind === "HOUSEHOLD";
+  const household = expense && (d.expenseKind === "HOUSEHOLD" || d.expenseKind === "PERSONAL");
   if (household) {
     d.scope="PERSONAL";
     d.projectId=undefined;
