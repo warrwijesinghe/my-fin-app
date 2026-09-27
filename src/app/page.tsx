@@ -12,13 +12,15 @@ import { rows } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
 import { getDashboardTrends } from "@/lib/dashboard-charts";
 import { MiniDonut, Sparkline, TrendArrow } from "@/components/dashboard-mini-chart";
+import { DashboardExpensePies, type ExpenseActivity, type ExpenseSlice } from "@/components/dashboard-expense-pies";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ account?: string; recent?: string; captured?: string; captureError?: string }> }) {
   const viewer=await requireSession();
   const data = await getDashboardData();
-  const [suppliers,goalSettings,trends] = await Promise.all([getLiabilitySuppliers(),rows<RowDataPacket & {value:string}>("SELECT value FROM AppSetting WHERE `key`='analyticsGoals'"),getDashboardTrends(data.accounts, data.totalReceivables + data.familyReceivable, data.outstandingAccruals + data.familyPayable)]);
+  const monthStart = new Date(); monthStart.setDate(1);
+  const [suppliers,goalSettings,trends,expenseRows,categories] = await Promise.all([getLiabilitySuppliers(),rows<RowDataPacket & {value:string}>("SELECT value FROM AppSetting WHERE `key`='analyticsGoals'"),getDashboardTrends(data.accounts, data.totalReceivables + data.familyReceivable, data.outstandingAccruals + data.familyPayable),rows<RowDataPacket & ExpenseActivity>(`SELECT t.activityId,t.categoryId,COALESCE(c.name,'Uncategorized') category,COALESCE(i.name,t.description,'Expense') item,t.amount,t.household,t.scope,t.taxScope,t.transactionDate FROM IncomeExpenseActivity t LEFT JOIN Category c ON c.id=t.categoryId LEFT JOIN ExpenseLine l ON l.id=t.activityId LEFT JOIN Item i ON i.id=l.itemId WHERE t.status='POSTED' AND t.type IN ('EXPENSE','ACCRUED_EXPENSE') AND t.transactionDate>=? ORDER BY t.transactionDate DESC`, [monthStart.toISOString().slice(0,10)]),rows<RowDataPacket & {id:string;name:string}>("SELECT id,name FROM Category WHERE kind='EXPENSE' AND isActive=1 ORDER BY name")]);
   const availableAccounts = data.accounts.filter((account) => ["CASH", "BANK", "SAVINGS"].includes(account.type));
   const { account: accountId, recent, captured, captureError } = await searchParams;
   const requestedLimit = Number.parseInt(recent ?? "20", 10);
@@ -40,6 +42,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const targetGap = targetAmount - data.overallPosition;
   const targetTrend = trends.map(point => ({ label: point.month, value: progressPercent(point.position) }));
   const trendPoints = (key: keyof typeof trends[number]) => trends.map(point => ({ label: point.month, value: Number(point[key]) }));
+  const expenseSlices = (filter: (row: typeof expenseRows[number]) => boolean): ExpenseSlice[] => expenseRows.filter(filter).reduce<ExpenseSlice[]>((result, row) => {
+    const slice = result.find(item => item.category === row.category);
+    if (slice) slice.amount += Number(row.amount); else result.push({ category: row.category, amount: Number(row.amount) });
+    return result;
+  }, []).sort((a, b) => b.amount - a.amount);
 
   return (
     <><Nav /><main>
@@ -68,6 +75,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <section className="panel dashboard-review"><div className="section-heading"><div><p className="eyebrow">Action needed</p><h2>Review queue</h2></div><Link href="/review">Open review</Link></div><div className="empty-compact"><strong>{data.pending}</strong><span>entries need an account or confirmation</span></div></section>
       </div>
       <DashboardLiabilities accounts={data.accounts} suppliers={suppliers}/>
+      <DashboardExpensePies categories={categories} charts={[
+        { title: "Total expenses", slices: expenseSlices(() => true), activities: expenseRows },
+        { title: "Household expenses", slices: expenseSlices(row => Boolean(row.household)), activities: expenseRows.filter(row => Boolean(row.household)) },
+        { title: "Business expenses", slices: expenseSlices(row => !Boolean(row.household)), activities: expenseRows.filter(row => !Boolean(row.household)) },
+      ]} />
     </main></>
   );
 }

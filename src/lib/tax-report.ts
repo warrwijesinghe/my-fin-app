@@ -8,6 +8,7 @@ export type TaxTransaction = {
 };
 
 export const taxLabel = (row: TaxTransaction): MoneyScope => row.taxScope ?? row.scope;
+const taxLabelName = (scope: MoneyScope) => scope === "BUSINESS" ? "Business" : "Household";
 export const isIncomeExpense = (row: TaxTransaction) => row.status === "POSTED" && ["INCOME", "EXPENSE", "ACCRUED_EXPENSE"].includes(row.type);
 
 export function incomeTaxReport(transactions: TaxTransaction[], scope: MoneyScope, owner: "ME"|"WIFE" = "ME") {
@@ -24,10 +25,10 @@ export function incomeTaxReport(transactions: TaxTransaction[], scope: MoneyScop
 export function incomeTaxCsv(transactions: TaxTransaction[], scope: MoneyScope, start: string, end: string, owner: "ME"|"WIFE" = "ME") {
   const report = incomeTaxReport(transactions, scope, owner);
   const data = [
-    ["Income tax report", scope], ["Period", start, end], ["Currency", "LKR"],
+    ["Income tax report", taxLabelName(scope)], ["Period", start, end], ["Currency", "LKR"],
     ["Classification basis", "Tax label"],
-    ["Date", "Description", "Category", "Actual label", "Tax label", "Type", "Income", "Expenses"],
-    ...report.transactions.map(row => [row.transactionDate.slice(0, 10), row.description ?? "", row.category, row.scope, taxLabel(row), row.type, row.type === "INCOME" ? Number(row.amount).toFixed(2) : "", row.type !== "INCOME" ? Number(row.amount).toFixed(2) : ""]),
+    ["Date", "Description", "Category", "Tax label", "Type", "Income", "Expenses"],
+    ...report.transactions.map(row => [row.transactionDate.slice(0, 10), row.description ?? "", row.category, taxLabelName(taxLabel(row)), row.type, row.type === "INCOME" ? Number(row.amount).toFixed(2) : "", row.type !== "INCOME" ? Number(row.amount).toFixed(2) : ""]),
     ["Total income", report.total.income.toFixed(2)], ["Total expenses", report.total.expenses.toFixed(2)], ["Net income less expenses", report.total.net.toFixed(2)],
     ["Basis", "Posted income and expenses, including pay-later bills when recorded. Transfers, debt payments, opening balances, adjustments, pending and void records excluded. This report classifies records; it does not calculate tax or determine deductibility."],
   ];
