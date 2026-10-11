@@ -27,7 +27,7 @@ export async function sharedRows<T extends RowDataPacket>(sql: string, values: u
 // This deliberately returns no balances or transaction history.
 export async function familyPaymentAccounts<T extends RowDataPacket>() {
   await currentOwner();
-  const [result] = await pool.execute<T[]>("SELECT id,name,type,owner,isSharedCash FROM Account WHERE isActive=1 ORDER BY owner,name");
+  const [result] = await pool.execute<T[]>("SELECT id,name,type,owner,isSharedCash,isSharedLoan FROM Account WHERE isActive=1 ORDER BY owner,name");
   return result;
 }
 

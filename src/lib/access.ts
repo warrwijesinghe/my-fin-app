@@ -14,16 +14,18 @@ export function scopeSelect(sql: string, owner: Owner, scope: ReadScope = "priva
   const own = `owner='${owner}'`;
   const cash = "SELECT id FROM Account WHERE isSharedCash=1";
   const sharedTx = `(accountId IN (${cash}) OR destinationAccountId IN (${cash}))`;
+  const sharedLoans = "SELECT id FROM Account WHERE isSharedLoan=1";
+  const sharedLoanTx = `(accountId IN (${sharedLoans}) OR destinationAccountId IN (${sharedLoans}))`;
   const familyLoan = "familyLoanId IS NOT NULL";
-  const tx = scope === "family" ? `(${own} OR ${familyLoan})` : scope === "shared" ? `(${own} OR household=1 OR ${sharedTx} OR ${familyLoan})` : scope === "household" ? `(${own} OR household=1)` : scope === "cash" ? `(${own} OR ${sharedTx} OR ${familyLoan})` : own;
+  const tx = scope === "family" ? `(${own} OR ${familyLoan} OR ${sharedLoanTx})` : scope === "shared" ? `(${own} OR household=1 OR ${sharedTx} OR ${sharedLoanTx} OR ${familyLoan})` : scope === "household" ? `(${own} OR household=1)` : scope === "cash" ? `(${own} OR ${sharedTx} OR ${familyLoan})` : `(${own} OR ${sharedLoanTx})`;
   const txIds = `SELECT id FROM FinancialTransaction WHERE ${tx}`;
   const filters: Record<string,string> = {
-    Account: scope === "family" ? "1=1" : scope !== "private" ? `(${own} OR isSharedCash=1)` : own,
+    Account: scope === "family" ? "1=1" : scope === "cash" ? `(${own} OR isSharedCash=1)` : scope !== "private" ? `(${own} OR isSharedCash=1 OR isSharedLoan=1)` : `(${own} OR isSharedLoan=1)`,
     FinancialTransaction: tx, IncomeExpenseActivity: own, CreditOutstanding: own,
     Project: own, Task: "1=1", Party: "1=1", Category: "1=1", FinancialGoal: own, FamilyLoan: `(lender='${owner}' OR borrower='${owner}')`, Receivable: own, AppSetting: own,
     Item: "1=1",
     ExpenseLine: `transactionId IN (${txIds})`,
-    AccountEntry: `accountId IN (SELECT id FROM Account WHERE ${scope === "cash" ? `(${own} OR isSharedCash=1)` : own})`,
+    AccountEntry: `accountId IN (SELECT id FROM Account WHERE ${scope === "family" ? "1=1" : scope === "cash" ? `(${own} OR isSharedCash=1)` : scope === "private" ? `(${own} OR isSharedLoan=1)` : `(${own} OR isSharedCash=1 OR isSharedLoan=1)`})`,
     AccruedExpense: scope === "household" || scope === "shared" ? `(${own} OR id IN (SELECT accrualId FROM FinancialTransaction WHERE household=1))` : own,
     PartyEntry: `transactionId IN (${txIds})`,
     AuditLog: `transactionId IN (${txIds})`,

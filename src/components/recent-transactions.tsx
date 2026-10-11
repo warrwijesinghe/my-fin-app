@@ -9,7 +9,7 @@ type RecentTransaction = RowDataPacket & {
   categoryName: string | null; outstanding:number|null;
 };
 const labels: Record<string, string> = {
-  PARTY_PAYMENT: "Customer / supplier payment", INCOME: "Income", EXPENSE: "Expense", TRANSFER: "Transfer", DEBT_PAYMENT: "Debt payment",
+  PARTY_PAYMENT: "Customer / supplier payment", INCOME: "Income", EXPENSE: "Expense", TRANSFER: "Transfer", DEBT_PAYMENT: "Debt payment", LOAN_INTEREST: "Loan interest",
   ACCRUED_EXPENSE: "Pay later", OPENING_BALANCE: "Opening balance",
 };
 const transactionVisuals: Record<string, { symbol: string; tone: string }> = {
@@ -18,6 +18,7 @@ const transactionVisuals: Record<string, { symbol: string; tone: string }> = {
   EXPENSE: { symbol: "↗", tone: "expense" },
   TRANSFER: { symbol: "⇄", tone: "transfer" },
   DEBT_PAYMENT: { symbol: "✓", tone: "debt" },
+  LOAN_INTEREST: { symbol: "%", tone: "debt" },
   ACCRUED_EXPENSE: { symbol: "◷", tone: "accrued" },
   OPENING_BALANCE: { symbol: "◎", tone: "opening" },
   ADJUSTMENT: { symbol: "±", tone: "adjustment" },

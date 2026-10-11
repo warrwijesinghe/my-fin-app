@@ -9,7 +9,7 @@ import { moneyCents } from "@/lib/expenses";
 const amountSchema=z.coerce.number().positive().max(999999999).refine(n=>Math.abs(n*100-Math.round(n*100))<0.00001);
 const schema=z.object({amount:amountSchema,transactionDate:z.string().refine(validDate),description:z.string().max(300),spentBy:z.enum(["ME","WIFE"])});
 class InputError extends Error {}
-const sharedCondition="(household=1 OR accountId IN (SELECT id FROM Account WHERE isSharedCash=1) OR destinationAccountId IN (SELECT id FROM Account WHERE isSharedCash=1))";
+const sharedCondition="(household=1 OR accountId IN (SELECT id FROM Account WHERE isSharedCash=1 OR isSharedLoan=1) OR destinationAccountId IN (SELECT id FROM Account WHERE isSharedCash=1 OR isSharedLoan=1))";
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}) {
   const denied=await requireApiSession();if(denied)return denied;
   const actor=await currentOwner(),{id}=await params,form=await request.formData();

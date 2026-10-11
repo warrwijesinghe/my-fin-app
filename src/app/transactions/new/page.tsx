@@ -17,7 +17,7 @@ export default async function NewTransactionPage({searchParams}:{searchParams:Pr
   const [accounts, projects, tasks, categories, items, parties, transactions] = await Promise.all([
     familyPaymentAccounts<any>(),rows<any>("SELECT * FROM `Project` WHERE isActive=1 ORDER BY name"),rows<any>("SELECT * FROM `Task` WHERE isActive=1 ORDER BY name"),rows<any>("SELECT * FROM `Category` WHERE isActive=1 ORDER BY name"),rows<any>("SELECT * FROM Item WHERE isActive=1 ORDER BY name"),rows<any>("SELECT * FROM Party WHERE isActive=1 ORDER BY name"),
     rows<any>(`SELECT t.id,t.type,t.amount,t.transactionDate,t.description,t.counterparty,t.household,
-      a.name accountName,a.isSharedCash accountShared,d.name destinationName,d.isSharedCash destinationShared,p.name partyName
+      a.name accountName,(a.isSharedCash OR a.isSharedLoan) accountShared,d.name destinationName,(d.isSharedCash OR d.isSharedLoan) destinationShared,p.name partyName
       FROM FinancialTransaction t LEFT JOIN Account a ON a.id=t.accountId LEFT JOIN Account d ON d.id=t.destinationAccountId LEFT JOIN Party p ON p.id=t.partyId
       WHERE t.status='POSTED' AND t.transactionDate>=? AND t.transactionDate<=? ORDER BY t.transactionDate DESC,t.createdAt DESC LIMIT 200`,[from,to])
   ]);

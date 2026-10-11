@@ -10,7 +10,7 @@ import { linesSchema, moneyCents, normalizeItem } from "@/lib/expenses";
 
 const schema = z.object({
   draftId:z.string().uuid().optional(), partyId:z.string().max(191).optional(), paymentTiming:z.enum(["PAID","CREDIT"]).optional(), expenseKind:z.enum(["HOUSEHOLD","PERSONAL","BUSINESS"]).optional(), incomeKind:z.enum(["HOUSEHOLD","BUSINESS"]).optional(),
-  type: z.enum(["INCOME","EXPENSE","TRANSFER","ACCRUED_EXPENSE","DEBT_PAYMENT"]),
+  type: z.enum(["INCOME","EXPENSE","TRANSFER","ACCRUED_EXPENSE","DEBT_PAYMENT","LOAN_INTEREST"]),
   amount: z.coerce.number().positive().max(999999999).optional(), transactionDate: z.string().refine(validDate),
   scope: z.enum(SCOPES), taxScope: z.enum(SCOPES).optional(), owner: z.enum(["ME","WIFE"]).default("ME"),
   description: z.string().max(300).optional(), counterparty: z.string().max(140).optional(),
@@ -77,8 +77,8 @@ export async function POST(request: Request) {
         if(!saveDraft&&lines.length&&total<moneyCents(draft.amount)&&d.categoryId)lines.push({name:"Unallocated remainder",categoryId:d.categoryId,amount:(moneyCents(draft.amount)-total)/100});
       }
       if(!amount)throw new InputError("invalid");
-      const account = d.accountId ? await find("SELECT id,type,owner,isSharedCash FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.accountId]) : null;
-      const dest = d.destinationAccountId ? await find("SELECT id,type,owner,isSharedCash FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.destinationAccountId]) : null;
+      const account = d.accountId ? await find("SELECT id,type,owner,isSharedCash,isSharedLoan FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.accountId]) : null;
+      const dest = d.destinationAccountId ? await find("SELECT id,type,owner,isSharedCash,isSharedLoan FROM Account WHERE id=? AND isActive=1 FOR UPDATE",[d.destinationAccountId]) : null;
       if ((d.accountId && !account) || (!saveDraft && !credit && !account) || (d.destinationAccountId && !dest)) throw new InputError("account");
       const owner = credit ? d.owner : account?.owner ?? d.owner;
       if(credit&&d.accountId)throw new InputError("account");
@@ -86,13 +86,17 @@ export async function POST(request: Request) {
       if(d.partyId&&!party)throw new InputError("party");
       if(party && (moving || !["BOTH",d.type==="INCOME"?"CUSTOMER":"SUPPLIER"].includes(party.kind)))throw new InputError("party");
       if(credit && !saveDraft && (!party||party.isCash))throw new InputError("credit-party");
-      if(account && account.owner!==viewer && !(expense && spentBy.data===account.owner))throw new InputError("account");
-      if(dest && (dest.owner!==viewer || account?.owner!==viewer))throw new InputError("accounts");
+      const sharedLoanPayment=d.type==="DEBT_PAYMENT" && dest?.type==="LOAN" && Boolean(dest.isSharedLoan);
+      if(account && account.owner!==viewer && !(expense && spentBy.data===account.owner) && !(sharedLoanPayment && spentBy.data===account.owner) && !(d.type==="LOAN_INTEREST" && account.isSharedLoan))throw new InputError("account");
+      if(d.type==="DEBT_PAYMENT" && account && spentBy.data!==account.owner)throw new InputError("account");
+      if(dest && !sharedLoanPayment && (dest.owner!==viewer || account?.owner!==viewer))throw new InputError("accounts");
       if(account?.isSharedCash && d.type==="INCOME")throw new InputError("Use-transfer-to-top-up");
       if (account?.type === "FIXED_ASSET" && !moving) throw new InputError("account");
       if (dest?.type === "FIXED_ASSET" && !moving) throw new InputError("account");
+      if (d.type === "LOAN_INTEREST" && (account?.type !== "LOAN" || (account.owner !== viewer && !account.isSharedLoan))) throw new InputError("account");
       if(account && account.owner!==viewer && d.projectId)throw new InputError("shared-metadata");
       if (d.type === "DEBT_PAYMENT" && !["CREDIT_CARD","LOAN"].includes(dest?.type)) throw new InputError("accounts");
+      if (d.type === "DEBT_PAYMENT" && !["CASH","BANK","SAVINGS"].includes(account?.type)) throw new InputError("accounts");
       const categoryIds = [...new Set(lines.length ? lines.map(l=>l.categoryId) : d.categoryId ? [d.categoryId] : [])];
       for (const categoryId of categoryIds) {
         const category = await find("SELECT kind FROM Category WHERE id=? AND isActive=1",[categoryId]);

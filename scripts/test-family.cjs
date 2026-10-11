@@ -11,19 +11,20 @@ for(const viewer of ['ME','WIFE']) {
   for(const table of ['Account','FinancialTransaction','IncomeExpenseActivity','CreditOutstanding','Project','FinancialGoal','AppSetting']) {
     for(const source of [`SELECT * FROM ${table}`,`SELECT * FROM \`${table}\` WHERE id=?`,`SELECT a.* FROM ${table} AS a WHERE a.id=? FOR UPDATE`]) {
       const scoped=access.scopeSelect(source,viewer);
-      assert.ok(scoped.includes(`WHERE owner='${viewer}'`),scoped);
+      assert.ok(scoped.includes(`owner='${viewer}'`),scoped);
       assert.equal((scoped.match(/\?/g)||[]).length,(source.match(/\?/g)||[]).length);
       assert.ok(!scoped.includes('``'),scoped);
     }
   }
   const joined=access.scopeSelect('SELECT a.*,e.amount FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id WHERE a.id=? GROUP BY a.id',viewer);
-  assert.ok(joined.includes(`SELECT id FROM Account WHERE owner='${viewer}'`));
+  assert.ok(joined.includes(`SELECT id FROM Account WHERE (owner='${viewer}' OR isSharedLoan=1)`));
   assert.ok(!joined.includes('isSharedCash=1'));
+  assert.ok(access.scopeSelect('SELECT * FROM FinancialTransaction',viewer).includes('isSharedLoan=1'));
   assert.ok(access.scopeSelect('SELECT * FROM FinancialTransaction',viewer,'household').includes('OR household=1'));
   assert.ok(access.scopeSelect('SELECT * FROM FinancialTransaction',viewer,'cash').includes('isSharedCash=1'));
   for(const table of ['Party','Category','Item'])assert.ok(access.scopeSelect('SELECT * FROM '+table,viewer).includes('WHERE 1=1'));
   assert.ok(access.scopeSelect('SELECT * FROM Task',viewer).includes('ELSE NULL END AS projectId'));
-  assert.ok(access.scopeSelect('SELECT * FROM PartyEntry',viewer).includes(`SELECT id FROM FinancialTransaction WHERE owner='${viewer}'`));
+  assert.ok(access.scopeSelect('SELECT * FROM PartyEntry',viewer).includes(`SELECT id FROM FinancialTransaction WHERE (owner='${viewer}' OR`));
 }
 assert.equal(access.cashName('ME','ME'),'Cash at Sudu Manike');
 assert.equal(access.cashName('ME','WIFE'),'Ayya Cash');

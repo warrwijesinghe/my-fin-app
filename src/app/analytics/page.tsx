@@ -11,7 +11,7 @@ import { accountBalanceClass } from "@/lib/balance";
 export const dynamic = "force-dynamic";
 type Option = RowDataPacket & { id: string; name: string };
 export default async function Analytics({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireSession();
+  const viewer=await requireSession();
   const params = await searchParams;
   const text = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -31,7 +31,7 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
       WHERE t.status='POSTED' AND t.type IN ('INCOME','EXPENSE','ACCRUED_EXPENSE') AND ${filters.join(" AND ")}
       GROUP BY month,t.scope,t.projectId,p.name,t.categoryId,c.name,t.taskId,k.name`, values) : Promise.resolve([]),
     valid ? rows<RowDataPacket>(`SELECT COUNT(*) count FROM FinancialTransaction t WHERE t.status='PENDING_REVIEW' AND ${filters.join(" AND ")}`, values) : Promise.resolve([]),
-    rows<RowDataPacket>("SELECT a.id,a.name,a.type,COALESCE(SUM(e.amount),0) balance FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id WHERE 1=1 GROUP BY a.id ORDER BY a.name"),
+    rows<RowDataPacket>("SELECT a.id,a.name,a.type,a.owner,a.isSharedLoan,COALESCE(SUM(e.amount),0) balance FROM Account a LEFT JOIN AccountEntry e ON e.accountId=a.id WHERE 1=1 GROUP BY a.id ORDER BY a.name"),
     rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(amount-paidAmount,0)),0) amount FROM AccruedExpense WHERE status IN ('OPEN','PARTIALLY_PAID')"),
     rows<RowDataPacket>("SELECT value FROM AppSetting WHERE `key`='analyticsGoals'"),
     rows<RowDataPacket>("SELECT COALESCE(SUM(GREATEST(balance,0)),0) amount FROM CreditOutstanding WHERE type='INCOME'")
@@ -40,9 +40,12 @@ export default async function Analytics({ searchParams }: { searchParams: Promis
   const total = summarize(data), months = groupBy(data, "month"), categoryGroups = groupBy(data, "category"), scopes = groupBy(data, "scope");
   // Include months with no records so gaps remain visible in the trend.
   if (valid) { let cursor = new Date(`${start.slice(0,7)}-01T00:00:00Z`); const last = end.slice(0,7); while (cursor.toISOString().slice(0,7) <= last) { const name = cursor.toISOString().slice(0,7); if (!months.some(month => month.name === name)) months.push({ name, income: 0, expenses: 0, net: 0, count: 0 }); cursor.setUTCMonth(cursor.getUTCMonth()+1); } months.sort((a,b) => a.name.localeCompare(b.name)); }
-  const loans = balances.filter(a => ["LOAN","CREDIT_CARD"].includes(a.type));
+  // Other person's shared loan can be displayed elsewhere, but it must never
+  // change this viewer's debt, net-worth target, or progress calculations.
+  const ownedBalances=balances.filter(a=>a.owner===viewer);
+  const loans = ownedBalances.filter(a => ["LOAN","CREDIT_CARD"].includes(a.type));
   const debt = loans.reduce((sum,a) => sum + Math.max(0,Number(a.balance)),0);
-  const assets = balances.filter(a => !["LOAN","CREDIT_CARD"].includes(a.type)).reduce((sum,a) => sum + Number(a.balance),0) + loans.reduce((sum,a) => sum + Math.max(0,-Number(a.balance)),0);
+  const assets = ownedBalances.filter(a => !["LOAN","CREDIT_CARD"].includes(a.type)).reduce((sum,a) => sum + Number(a.balance),0) + loans.reduce((sum,a) => sum + Math.max(0,-Number(a.balance)),0);
   const unpaid = Number(accruals[0]?.amount ?? 0), netWorth = assets + Number(receivables[0]?.amount??0) - debt - unpaid;
   let goal = { target: 30000000, monthlyDebt: 0, monthlyWealth: 0 };
   try { const saved = JSON.parse(settings[0]?.value ?? "null"); if (saved && Number.isFinite(saved.target) && saved.target > 0 && Number.isFinite(saved.monthlyDebt) && saved.monthlyDebt >= 0 && Number.isFinite(saved.monthlyWealth) && saved.monthlyWealth >= 0) goal = saved; } catch { /* Use starting targets if settings are missing or invalid. */ }

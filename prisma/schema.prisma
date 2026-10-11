@@ -27,6 +27,7 @@ enum TransactionType {
   TRANSFER
   ACCRUED_EXPENSE
   DEBT_PAYMENT
+  LOAN_INTEREST
   OPENING_BALANCE
   ADJUSTMENT
   PARTY_PAYMENT
@@ -71,6 +72,8 @@ enum HouseholdExpenseClass {
 
 model Account {
   isSharedCash Boolean @default(false)
+  // Visible to both family logins, while owner remains the one liable person.
+  isSharedLoan Boolean @default(false)
   @@unique([owner, name])
   owner Owner @default(ME)
   id                   String         @id @default(cuid())

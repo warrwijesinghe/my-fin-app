@@ -7,7 +7,7 @@ import { personName } from "@/lib/access";
 export const dynamic="force-dynamic";
 export default async function SharedTransactionPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<{error?:string}>}) {
   await requireSession();const {id}=await params, query=await searchParams;
-  const [entry]=await sharedRows<any>(`SELECT t.id,t.type,t.amount,t.transactionDate,t.description,t.owner,t.spentBy,t.household,t.revision FROM FinancialTransaction t WHERE t.id=? AND t.status='POSTED' AND (t.household=1 OR t.accountId IN (SELECT id FROM Account WHERE isSharedCash=1) OR t.destinationAccountId IN (SELECT id FROM Account WHERE isSharedCash=1))`,[id]);
+  const [entry]=await sharedRows<any>(`SELECT t.id,t.type,t.amount,t.transactionDate,t.description,t.owner,t.spentBy,t.household,t.revision FROM FinancialTransaction t WHERE t.id=? AND t.status='POSTED' AND (t.household=1 OR t.accountId IN (SELECT id FROM Account WHERE isSharedCash=1 OR isSharedLoan=1) OR t.destinationAccountId IN (SELECT id FROM Account WHERE isSharedCash=1 OR isSharedLoan=1))`,[id]);
   if(!entry)notFound();
   const lines=await sharedRows<any>("SELECT l.id,l.amount,l.quantity,l.unit,i.name FROM ExpenseLine l LEFT JOIN Item i ON i.id=l.itemId WHERE l.transactionId=? ORDER BY l.id",[id]);
   return <><Nav/><main><div className="page-heading"><div><h1>Edit shared entry</h1><p>{entry.type.replaceAll("_"," ")} · {personName(entry.owner)}’s money</p></div></div>
